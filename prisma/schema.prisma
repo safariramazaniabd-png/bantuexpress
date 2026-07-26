@@ -16,6 +16,11 @@ enum UserRole {
   EMERGENCY
 }
 
+enum AddressType {
+  PERSONAL
+  PROFESSIONAL
+}
+
 enum IdentityDocumentType {
   NATIONAL_ID
   VOTER_CARD
@@ -43,6 +48,7 @@ model User {
   updatedAt               DateTime  @updatedAt
 
   profile                 Profile?
+  addresses               Address[]
 }
 
 model Profile {
@@ -62,4 +68,26 @@ model Profile {
   updatedAt              DateTime              @updatedAt
 
   user                   User                  @relation(fields: [userId], references: [id])
+}
+
+model Address {
+  id        String      @id @default(uuid()) @db.Uuid
+  userId    String      @db.Uuid
+  label     String?
+  type      AddressType @default(PERSONAL)
+  avenue    String?
+  quartier  String?
+  city      String
+  province  String      @default("")
+  country   String      @default("CD")
+  isPrimary Boolean     @default(false)
+  isPublic  Boolean     @default(false)
+  deletedAt DateTime?
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+
+  user      User        @relation(fields: [userId], references: [id])
+
+  @@index([userId, deletedAt])
+  @@index([city, province])
 }

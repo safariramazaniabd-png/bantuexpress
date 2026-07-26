@@ -20,6 +20,7 @@ import { SyncModule } from './modules/sync/sync.module';
 import { DeliveryModule } from './modules/delivery/delivery.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
 import { HealthModule } from './modules/health/health.module';
+import { AddressesModule } from './modules/addresses/addresses.module';
 
 @Module({
   imports: [
@@ -51,6 +52,7 @@ import { HealthModule } from './modules/health/health.module';
     DeliveryModule,
     NotificationsModule,
     HealthModule,
+    AddressesModule,
   ],
   providers: [
     // Garde anti-abus globale
