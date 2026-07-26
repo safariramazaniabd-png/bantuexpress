@@ -21,6 +21,18 @@ enum AddressType {
   PROFESSIONAL
 }
 
+enum LandmarkCategory {
+  ROUTE
+  NEIGHBORHOOD
+  BUILDING
+  MONUMENT
+  PARK
+  SCHOOL
+  HOSPITAL
+  MARKET
+  OTHER
+}
+
 enum IdentityDocumentType {
   NATIONAL_ID
   VOTER_CARD
@@ -49,6 +61,7 @@ model User {
 
   profile                 Profile?
   addresses               Address[]
+  landmarks               Landmark[]
 }
 
 model Profile {
@@ -90,4 +103,29 @@ model Address {
 
   @@index([userId, deletedAt])
   @@index([city, province])
+}
+
+model Landmark {
+  id          String           @id @default(uuid()) @db.Uuid
+  userId      String?          @db.Uuid
+  name        String
+  category    LandmarkCategory @default(OTHER)
+  description String?
+  address     String?
+  city        String
+  province    String           @default("")
+  country     String           @default("CD")
+  latitude    Float
+  longitude   Float
+  isPublic    Boolean          @default(true)
+  verifiedAt  DateTime?
+  deletedAt   DateTime?
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  user        User?            @relation(fields: [userId], references: [id])
+
+  @@index([category])
+  @@index([city, province])
+  @@index([deletedAt])
 }

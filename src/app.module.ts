@@ -15,12 +15,12 @@ import { AuditModule } from './modules/audit/audit.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { IdentitiesModule } from './modules/identities/identities.module';
 import { GeoModule } from './modules/geo/geo.module';
-import { LandmarksModule } from './modules/landmarks/landmarks.module';
 import { SyncModule } from './modules/sync/sync.module';
 import { DeliveryModule } from './modules/delivery/delivery.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
 import { HealthModule } from './modules/health/health.module';
 import { AddressesModule } from './modules/addresses/addresses.module';
+import { LandmarksModule } from './modules/landmarks/landmarks.module';
 
 @Module({
   imports: [
@@ -47,12 +47,12 @@ import { AddressesModule } from './modules/addresses/addresses.module';
     AuthModule,
     IdentitiesModule,
     GeoModule,
-    LandmarksModule,
     SyncModule,
     DeliveryModule,
     NotificationsModule,
     HealthModule,
     AddressesModule,
+    LandmarksModule,
   ],
   providers: [
     // Garde anti-abus globale
