@@ -2,16 +2,11 @@ import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { JwtModule } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
+import { AuthController } from './auth.controller';
+import { AuthService } from './auth.service';
 import { JwtStrategy } from './strategies/jwt.strategy';
+import { JwtRefreshStrategy } from './strategies/jwt-refresh.strategy';
 
-/**
- * Module transverse d'authentification. A ce stade, n'expose pas encore
- * de controller (login/register/refresh) - c'est le contenu du Module 1
- * cote authentification, a construire dans une prochaine etape. Ce
- * module se limite pour l'instant a enregistrer la strategie JWT dont
- * dependent tous les JwtAuthGuard deja utilises dans l'application :
- * sans lui, aucune route protegee ne peut fonctionner.
- */
 @Module({
   imports: [
     PassportModule.register({ defaultStrategy: 'jwt' }),
@@ -24,7 +19,8 @@ import { JwtStrategy } from './strategies/jwt.strategy';
       }),
     }),
   ],
-  providers: [JwtStrategy],
+  controllers: [AuthController],
+  providers: [AuthService, JwtStrategy, JwtRefreshStrategy],
   exports: [JwtModule, PassportModule],
 })
 export class AuthModule {}

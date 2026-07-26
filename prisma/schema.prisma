@@ -17,14 +17,21 @@ enum UserRole {
 }
 
 model User {
-  id           String    @id @default(uuid()) @db.Uuid
-  email        String    @unique
-  phone        String    @unique
-  passwordHash String
-  role         UserRole  @default(INDIVIDUAL)
-  isActive     Boolean   @default(true)
-  refreshToken String?
-  lastLoginAt  DateTime?
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
+  id                      String    @id @default(uuid()) @db.Uuid
+  email                   String    @unique
+  phone                   String    @unique
+  passwordHash            String
+  role                    UserRole  @default(INDIVIDUAL)
+  isActive                Boolean   @default(true)
+  refreshToken            String?
+  emailVerifiedAt         DateTime?
+  phoneVerifiedAt         DateTime?
+  verificationCode        String?
+  verificationCodeExpiresAt DateTime?
+  resetPasswordToken      String?
+  resetPasswordExpiresAt  DateTime?
+  googleId                String?   @unique
+  lastLoginAt             DateTime?
+  createdAt               DateTime  @default(now())
+  updatedAt               DateTime  @updatedAt
 }
