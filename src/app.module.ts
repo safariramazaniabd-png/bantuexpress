@@ -23,6 +23,7 @@ import { AddressesModule } from './modules/addresses/addresses.module';
 import { LandmarksModule } from './modules/landmarks/landmarks.module';
 import { SearchModule } from './modules/search/search.module';
 import { QrCodesModule } from './modules/qrcodes/qrcodes.module';
+import { BusinessProfilesModule } from './modules/business-profiles/business-profiles.module';
 
 @Module({
   imports: [
@@ -57,6 +58,7 @@ import { QrCodesModule } from './modules/qrcodes/qrcodes.module';
     LandmarksModule,
     SearchModule,
     QrCodesModule,
+    BusinessProfilesModule,
   ],
   providers: [
     // Garde anti-abus globale
