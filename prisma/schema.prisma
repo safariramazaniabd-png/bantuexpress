@@ -64,6 +64,7 @@ model User {
   landmarks               Landmark[]
   positions               UserPosition[]
   routes                  Route[]
+  qrCodes                 QrCode[]
 }
 
 model Profile {
@@ -164,4 +165,20 @@ model Route {
   user        User?    @relation(fields: [userId], references: [id])
 
   @@index([userId])
+}
+
+model QrCode {
+  id            String    @id @default(uuid()) @db.Uuid
+  userId        String?   @db.Uuid
+  entityType    String
+  entityId      String
+  code          String    @unique
+  scans         Int       @default(0)
+  lastScannedAt DateTime?
+  createdAt     DateTime  @default(now())
+
+  user          User?     @relation(fields: [userId], references: [id])
+
+  @@unique([entityType, entityId])
+  @@index([code])
 }

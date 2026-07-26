@@ -22,6 +22,7 @@ import { HealthModule } from './modules/health/health.module';
 import { AddressesModule } from './modules/addresses/addresses.module';
 import { LandmarksModule } from './modules/landmarks/landmarks.module';
 import { SearchModule } from './modules/search/search.module';
+import { QrCodesModule } from './modules/qrcodes/qrcodes.module';
 
 @Module({
   imports: [
@@ -55,6 +56,7 @@ import { SearchModule } from './modules/search/search.module';
     AddressesModule,
     LandmarksModule,
     SearchModule,
+    QrCodesModule,
   ],
   providers: [
     // Garde anti-abus globale
