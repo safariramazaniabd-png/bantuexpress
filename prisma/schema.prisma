@@ -14,11 +14,27 @@ enum UserRole {
   PROFESSIONAL
   ADMIN
   EMERGENCY
+  COURIER
+  TRANSPORTER
+  DELIVERY_AGENCY
+}
+
+enum MessageType {
+  TEXT
+  IMAGE
+  LOCATION
 }
 
 enum AddressType {
-  PERSONAL
-  PROFESSIONAL
+  HOME
+  BUSINESS
+  OFFICE
+  SHOP
+  SCHOOL
+  FARM
+  ORGANIZATION
+  EVENT
+  OTHER
 }
 
 enum BusinessType {
@@ -115,6 +131,11 @@ model User {
   resetPasswordToken      String?
   resetPasswordExpiresAt  DateTime?
   googleId                String?   @unique
+  appleId                 String?   @unique
+  facebookId              String?   @unique
+  whatsappId              String?   @unique
+  twoFactorSecret         String?
+  twoFactorEnabled        Boolean   @default(false)
   lastLoginAt             DateTime?
   createdAt               DateTime  @default(now())
   updatedAt               DateTime  @updatedAt
@@ -127,13 +148,20 @@ model User {
   qrCodes                 QrCode[]
   businessProfiles        BusinessProfile[]
   businessMemberships     BusinessMember[]
-  clientDeliveries        Delivery[]       @relation("DeliveryClient")
-  courierDeliveries       Delivery[]       @relation("DeliveryCourier")
-  emergencyReports        Emergency[]      @relation("EmergencyReporter")
-  emergencyResponses      Emergency[]      @relation("EmergencyResponder")
-  reports                 ContentReport[]   @relation("ContentReportReporter")
-  reviewedReports         ContentReport[]   @relation("ContentReportReviewer")
+  clientDeliveries        Delivery[]            @relation("DeliveryClient")
+  courierDeliveries       Delivery[]            @relation("DeliveryCourier")
+  emergencyReports        Emergency[]           @relation("EmergencyReporter")
+  emergencyResponses      Emergency[]           @relation("EmergencyResponder")
+  reports                 ContentReport[]        @relation("ContentReportReporter")
+  reviewedReports         ContentReport[]        @relation("ContentReportReviewer")
   auditLogs               AdminAuditLog[]
+  organizedEvents         Event[]               @relation("EventOrganizer")
+  favorites               Favorite[]
+  reviews                 Review[]
+  notifications           Notification[]
+  conversationParticipants ConversationParticipant[]
+  sentMessages            Message[]             @relation("MessageSender")
+  shareLinks              ShareLink[]
 }
 
 model Profile {
@@ -142,11 +170,16 @@ model Profile {
   firstName              String                @default("")
   lastName               String                @default("")
   avatarUrl              String?
+  gender                 String?
+  birthDate              DateTime?
   profession             String?
   languages              String[]              @default([])
   secondaryPhones        String[]              @default([])
   identityDocumentType   IdentityDocumentType?
   identityDocumentNumber String?
+  identityDocumentPhoto  String?
+  digitalSignature       String?
+  verifiedAt             DateTime?
   personalQrCode         String?               @unique
   isPublic               Boolean               @default(true)
   createdAt              DateTime              @default(now())
@@ -156,22 +189,26 @@ model Profile {
 }
 
 model Address {
-  id        String      @id @default(uuid()) @db.Uuid
-  userId    String      @db.Uuid
-  label     String?
-  type      AddressType @default(PERSONAL)
-  avenue    String?
-  quartier  String?
-  city      String
-  province  String      @default("")
-  country   String      @default("CD")
-  isPrimary Boolean     @default(false)
-  isPublic  Boolean     @default(false)
-  deletedAt DateTime?
-  createdAt DateTime    @default(now())
-  updatedAt DateTime    @updatedAt
+  id         String      @id @default(uuid()) @db.Uuid
+  userId     String      @db.Uuid
+  label      String?
+  type       AddressType @default(HOME)
+  avenue     String?
+  quartier   String?
+  city       String
+  province   String      @default("")
+  country    String      @default("CD")
+  latitude   Float?
+  longitude  Float?
+  isPrimary  Boolean     @default(false)
+  isPublic   Boolean     @default(false)
+  expiresAt  DateTime?
+  shareToken String?     @unique
+  deletedAt  DateTime?
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
 
-  user      User        @relation(fields: [userId], references: [id])
+  user       User        @relation(fields: [userId], references: [id])
 
   @@index([userId, deletedAt])
   @@index([city, province])
@@ -274,6 +311,8 @@ model BusinessProfile {
 
   user        User              @relation(fields: [userId], references: [id])
   members     BusinessMember[]
+  openingHours OpeningHour[]
+  products    Product[]
 
   @@index([type, isVerified])
   @@index([city, province])
@@ -309,6 +348,8 @@ model Delivery {
   dropoffLng      Float
   distanceKm      Float?
   price           Decimal?       @db.Decimal(10, 2)
+  proofPhoto      String?
+  proofSignature  String?
   pickedUpAt      DateTime?
   deliveredAt     DateTime?
   cancelledAt     DateTime?
@@ -397,4 +438,161 @@ model AdminAuditLog {
   @@index([adminId])
   @@index([action])
   @@index([createdAt])
+}
+
+model OpeningHour {
+  id                String  @id @default(uuid()) @db.Uuid
+  businessProfileId String  @db.Uuid
+  dayOfWeek         Int
+  open              String
+  close             String
+
+  businessProfile   BusinessProfile @relation(fields: [businessProfileId], references: [id], onDelete: Cascade)
+
+  @@unique([businessProfileId, dayOfWeek])
+}
+
+model Product {
+  id                String   @id @default(uuid()) @db.Uuid
+  businessProfileId String   @db.Uuid
+  name              String
+  description       String?
+  price             Decimal? @db.Decimal(10, 2)
+  imageUrl          String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  businessProfile   BusinessProfile @relation(fields: [businessProfileId], references: [id], onDelete: Cascade)
+
+  @@index([businessProfileId])
+}
+
+model Favorite {
+  id         String   @id @default(uuid()) @db.Uuid
+  userId     String   @db.Uuid
+  entityType String
+  entityId   String
+  createdAt  DateTime @default(now())
+
+  user       User     @relation(fields: [userId], references: [id])
+
+  @@unique([userId, entityType, entityId])
+  @@index([userId])
+}
+
+model Review {
+  id         String   @id @default(uuid()) @db.Uuid
+  userId     String   @db.Uuid
+  entityType String
+  entityId   String
+  rating     Int
+  comment    String?
+  createdAt  DateTime @default(now())
+
+  user       User     @relation(fields: [userId], references: [id])
+
+  @@index([entityType, entityId])
+  @@index([userId])
+}
+
+model Event {
+  id          String   @id @default(uuid()) @db.Uuid
+  organizerId String   @db.Uuid
+  name        String
+  description String?
+  address     String?
+  latitude    Float?
+  longitude   Float?
+  startDate   DateTime
+  endDate     DateTime?
+  qrCode      String?  @unique
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  organizer   User     @relation("EventOrganizer", fields: [organizerId], references: [id])
+
+  @@index([organizerId])
+  @@index([startDate])
+}
+
+model Conversation {
+  id            String   @id @default(uuid()) @db.Uuid
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  participants  ConversationParticipant[]
+  messages      Message[]
+}
+
+model ConversationParticipant {
+  id             String       @id @default(uuid()) @db.Uuid
+  conversationId String       @db.Uuid
+  userId         String       @db.Uuid
+
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  user           User         @relation(fields: [userId], references: [id])
+
+  @@unique([conversationId, userId])
+  @@index([userId])
+}
+
+model Message {
+  id             String      @id @default(uuid()) @db.Uuid
+  conversationId String      @db.Uuid
+  senderId       String      @db.Uuid
+  content        String
+  type           MessageType @default(TEXT)
+  createdAt      DateTime    @default(now())
+
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  sender         User         @relation("MessageSender", fields: [senderId], references: [id])
+
+  @@index([conversationId, createdAt])
+}
+
+model Notification {
+  id        String    @id @default(uuid()) @db.Uuid
+  userId    String    @db.Uuid
+  type      String
+  title     String
+  body      String?
+  data      Json?     @db.JsonB
+  readAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  user      User      @relation(fields: [userId], references: [id])
+
+  @@index([userId, readAt])
+  @@index([createdAt])
+}
+
+model ShareLink {
+  id         String   @id @default(uuid()) @db.Uuid
+  userId     String   @db.Uuid
+  entityType String
+  entityId   String
+  token      String   @unique
+  expiresAt  DateTime?
+  createdAt  DateTime @default(now())
+
+  user       User     @relation(fields: [userId], references: [id])
+
+  @@index([token])
+  @@index([userId])
+}
+
+model Category {
+  id          String    @id @default(uuid()) @db.Uuid
+  name        String
+  slug        String    @unique
+  description String?
+  icon        String?
+  parentId    String?   @db.Uuid
+  createdAt   DateTime  @default(now())
+
+  parent      Category? @relation("CategoryParent", fields: [parentId], references: [id])
+  children    Category[] @relation("CategoryParent")
+
+  @@index([slug])
+  @@index([parentId])
 }

@@ -35,7 +35,7 @@ describe('AddressesService', () => {
     id: 'addr-1',
     userId: 'user-1',
     label: 'Domicile',
-    type: AddressType.PERSONAL,
+    type: AddressType.HOME,
     avenue: 'Avenue de la Libération',
     quartier: 'Gombe',
     city: 'Kinshasa',
@@ -104,11 +104,11 @@ describe('AddressesService', () => {
       mockPrisma.address.findMany.mockResolvedValue([]);
       mockPrisma.address.count.mockResolvedValue(0);
 
-      await service.findAll('user-1', { type: AddressType.PROFESSIONAL });
+      await service.findAll('user-1', { type: AddressType.BUSINESS });
 
       expect(mockPrisma.address.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
-          where: expect.objectContaining({ type: AddressType.PROFESSIONAL }),
+          where: expect.objectContaining({ type: AddressType.BUSINESS }),
         }),
       );
     });

@@ -38,7 +38,7 @@ export class AddressesService {
       data: {
         userId,
         label: dto.label,
-        type: dto.type ?? AddressType.PERSONAL,
+        type: dto.type ?? AddressType.HOME,
         avenue: dto.avenue,
         quartier: dto.quartier,
         city: dto.city,
