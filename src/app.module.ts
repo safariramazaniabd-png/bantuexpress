@@ -1,7 +1,6 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
-import { APP_FILTER, APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
-import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
+import { APP_FILTER, APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 
 import databaseConfig from './config/database.config';
 import authConfig from './config/auth.config';
@@ -24,6 +23,7 @@ import { LandmarksModule } from './modules/landmarks/landmarks.module';
 import { SearchModule } from './modules/search/search.module';
 import { QrCodesModule } from './modules/qrcodes/qrcodes.module';
 import { BusinessProfilesModule } from './modules/business-profiles/business-profiles.module';
+import { EmergencyModule } from './modules/emergency/emergency.module';
 
 @Module({
   imports: [
@@ -59,6 +59,7 @@ import { BusinessProfilesModule } from './modules/business-profiles/business-pro
     SearchModule,
     QrCodesModule,
     BusinessProfilesModule,
+    EmergencyModule,
   ],
   providers: [
     // Garde anti-abus globale
