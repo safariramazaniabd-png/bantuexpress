@@ -21,6 +21,7 @@ import { NotificationsModule } from './modules/notifications/notifications.modul
 import { HealthModule } from './modules/health/health.module';
 import { AddressesModule } from './modules/addresses/addresses.module';
 import { LandmarksModule } from './modules/landmarks/landmarks.module';
+import { SearchModule } from './modules/search/search.module';
 
 @Module({
   imports: [
@@ -53,6 +54,7 @@ import { LandmarksModule } from './modules/landmarks/landmarks.module';
     HealthModule,
     AddressesModule,
     LandmarksModule,
+    SearchModule,
   ],
   providers: [
     // Garde anti-abus globale
