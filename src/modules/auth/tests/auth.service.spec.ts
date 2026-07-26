@@ -110,7 +110,7 @@ describe('AuthService', () => {
       const result = await service.login({
         emailOrPhone: 'test@example.com',
         password: 'Password1',
-      });
+      }) as { user: { email: string }; accessToken: string };
 
       expect(result.user.email).toBe('test@example.com');
       expect(result.accessToken).toBe('mock-token');
@@ -122,7 +122,7 @@ describe('AuthService', () => {
       const result = await service.login({
         emailOrPhone: '+243901234567',
         password: 'Password1',
-      });
+      }) as { user: { phone: string } };
 
       expect(result.user.phone).toBe('+243901234567');
     });

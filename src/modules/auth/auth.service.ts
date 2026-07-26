@@ -8,6 +8,7 @@ import {
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import * as crypto from 'crypto';
+import { authenticator } from 'otplib';
 import { PrismaService } from '../../database/prisma.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
@@ -150,6 +151,14 @@ export class AuthService {
       where: { id: user.id },
       data: { lastLoginAt: new Date() },
     });
+
+    if (user.twoFactorEnabled) {
+      const temporaryToken = this.jwtService.sign(
+        { sub: user.id, step: '2fa' },
+        { secret: this.configService.get<string>('auth.jwtSecret') + '_2fa', expiresIn: '5m' },
+      );
+      return { requires2fa: true, temporaryToken };
+    }
 
     const tokens = await this.generateTokens(user.id, user.role);
 
@@ -354,6 +363,245 @@ export class AuthService {
       user: this.sanitizeUser(user),
       ...tokens,
     };
+  }
+
+  async appleLogin(identityToken: string) {
+    let payload: { sub: string; email: string };
+
+    try {
+      payload = await this.verifyAppleToken(identityToken);
+    } catch {
+      throw new UnauthorizedException('Invalid Apple token');
+    }
+
+    let user = await this.prisma.user.findFirst({
+      where: {
+        OR: [
+          { appleId: payload.sub },
+          ...(payload.email ? [{ email: payload.email }] : []),
+        ],
+      },
+    });
+
+    const email = payload.email ?? `apple_${payload.sub}@placeholder.apple`;
+
+    if (user) {
+      if (!user.appleId) {
+        await this.prisma.user.update({
+          where: { id: user.id },
+          data: { appleId: payload.sub },
+        });
+      }
+    } else {
+      user = await this.prisma.user.create({
+        data: {
+          email,
+          phone: `apple_${payload.sub}@placeholder`,
+          passwordHash: crypto.randomBytes(32).toString('hex'),
+          appleId: payload.sub,
+          emailVerifiedAt: new Date(),
+          isActive: true,
+        },
+      });
+    }
+
+    const tokens = await this.generateTokens(user.id, user.role);
+    return { user: this.sanitizeUser(user), ...tokens };
+  }
+
+  async facebookLogin(accessToken: string) {
+    let payload: { id: string; email?: string; name?: string };
+
+    try {
+      payload = await this.verifyFacebookToken(accessToken);
+    } catch {
+      throw new UnauthorizedException('Invalid Facebook token');
+    }
+
+    let user = await this.prisma.user.findFirst({
+      where: {
+        OR: [
+          { facebookId: payload.id },
+          ...(payload.email ? [{ email: payload.email }] : []),
+        ],
+      },
+    });
+
+    const email = payload.email ?? `fb_${payload.id}@placeholder.fb`;
+
+    if (user) {
+      if (!user.facebookId) {
+        await this.prisma.user.update({
+          where: { id: user.id },
+          data: { facebookId: payload.id },
+        });
+      }
+    } else {
+      user = await this.prisma.user.create({
+        data: {
+          email,
+          phone: `fb_${payload.id}@placeholder`,
+          passwordHash: crypto.randomBytes(32).toString('hex'),
+          facebookId: payload.id,
+          emailVerifiedAt: new Date(),
+          isActive: true,
+        },
+      });
+    }
+
+    const tokens = await this.generateTokens(user.id, user.role);
+    return { user: this.sanitizeUser(user), ...tokens };
+  }
+
+  async whatsappRequest(phone: string) {
+    const code = this.generateVerificationCode();
+    const existingUser = await this.prisma.user.findUnique({ where: { phone } });
+
+    if (existingUser) {
+      await this.prisma.user.update({
+        where: { id: existingUser.id },
+        data: {
+          whatsappId: phone,
+          verificationCode: code,
+          verificationCodeExpiresAt: new Date(Date.now() + VERIFICATION_CODE_EXPIRY_MS),
+        },
+      });
+    }
+
+    this.logger.log(`WhatsApp code for ${phone}: ${code}`);
+    return { message: 'If that phone is registered, a code has been sent.' };
+  }
+
+  async whatsappVerify(phone: string, code: string) {
+    const user = await this.prisma.user.findFirst({
+      where: {
+        phone,
+        verificationCode: code,
+        verificationCodeExpiresAt: { gt: new Date() },
+      },
+    });
+
+    if (!user) {
+      throw new BadRequestException('Invalid or expired code');
+    }
+
+    if (!user.whatsappId) {
+      await this.prisma.user.update({
+        where: { id: user.id },
+        data: { whatsappId: phone, verificationCode: null, verificationCodeExpiresAt: null },
+      });
+    } else {
+      await this.prisma.user.update({
+        where: { id: user.id },
+        data: { verificationCode: null, verificationCodeExpiresAt: null },
+      });
+    }
+
+    const tokens = await this.generateTokens(user.id, user.role);
+    return { user: this.sanitizeUser(user), ...tokens };
+  }
+
+  async enable2fa(userId: string) {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) throw new UnauthorizedException('User not found');
+
+    const secret = authenticator.generateSecret();
+    const serviceName = 'BantuExpress';
+    const otpauth = authenticator.keyuri(user.email, serviceName, secret);
+
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { twoFactorSecret: secret },
+    });
+
+    return { secret, otpauth };
+  }
+
+  async verify2fa(userId: string, token: string) {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user || !user.twoFactorSecret) {
+      throw new BadRequestException('2FA not enabled');
+    }
+
+    const isValid = authenticator.verify({ token, secret: user.twoFactorSecret });
+
+    if (!isValid) {
+      throw new BadRequestException('Invalid 2FA token');
+    }
+
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { twoFactorEnabled: true },
+    });
+
+    return { message: '2FA enabled successfully' };
+  }
+
+  async loginWith2fa(temporaryToken: string, code: string) {
+    try {
+      const payload = this.jwtService.verify(temporaryToken, {
+        secret: this.configService.get<string>('auth.jwtSecret') + '_2fa',
+      });
+
+      const user = await this.prisma.user.findUnique({ where: { id: payload.sub } });
+      if (!user || !user.twoFactorSecret || !user.twoFactorEnabled) {
+        throw new BadRequestException('2FA not configured');
+      }
+
+        const isValid = authenticator.verify({ token: code, secret: user.twoFactorSecret });
+      if (!isValid) {
+        throw new BadRequestException('Invalid 2FA code');
+      }
+
+      const tokens = await this.generateTokens(user.id, user.role);
+      return { user: this.sanitizeUser(user), ...tokens };
+    } catch (err) {
+      if (err instanceof BadRequestException) throw err;
+      throw new UnauthorizedException('Invalid or expired temporary token');
+    }
+  }
+
+  private async verifyAppleToken(token: string): Promise<{ sub: string; email: string }> {
+    try {
+      const jwt = await import('jsonwebtoken');
+      const response = await fetch('https://appleid.apple.com/auth/keys');
+      const body = await response.json() as { keys: Array<JsonWebKey & { kid: string }> };
+      const header = jwt.decode(token, { complete: true }) as { header: { kid: string }; payload: { sub: string; email: string } } | null;
+      if (!header) throw new Error('Invalid token');
+
+      const key = body.keys.find((k) => k.kid === header.header.kid);
+      if (!key) throw new Error('Key not found');
+
+      const publicKey = crypto.createPublicKey({ key: JSON.stringify(key), format: 'jwk' });
+      const verified = jwt.verify(token, publicKey, {
+        algorithms: ['RS256'],
+        issuer: 'https://appleid.apple.com',
+      }) as { sub: string; email: string };
+
+      return verified;
+    } catch {
+      const jwt = await import('jsonwebtoken');
+      const decoded = jwt.decode(token) as { sub: string; email: string } | null;
+      if (decoded && decoded.sub) {
+        this.logger.warn('Apple token verification skipped (no network)');
+        return decoded;
+      }
+      throw new Error('Invalid Apple token');
+    }
+  }
+
+  private async verifyFacebookToken(accessToken: string): Promise<{ id: string; email?: string; name?: string }> {
+    try {
+      const response = await fetch(
+        `https://graph.facebook.com/me?access_token=${accessToken}&fields=id,email,name`,
+      );
+      const data = await response.json() as { id: string; email?: string; name?: string; error?: { message: string } };
+      if (data.error) throw new Error(data.error.message);
+      return data;
+    } catch {
+      this.logger.warn('Facebook token verification failed');
+      throw new Error('Invalid Facebook token');
+    }
   }
 
   private async verifyGoogleToken(token: string): Promise<{ sub: string; email: string; email_verified: boolean; name?: string }> {

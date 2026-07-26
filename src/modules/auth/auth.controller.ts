@@ -1,4 +1,4 @@
-import { Controller, Post, Get, Body, UseGuards, Req } from '@nestjs/common';
+import { Controller, Post, Get, Body, UseGuards } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
@@ -6,6 +6,12 @@ import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { VerifyCodeDto } from './dto/verify-code.dto';
+import { AppleLoginDto } from './dto/apple-login.dto';
+import { FacebookLoginDto } from './dto/facebook-login.dto';
+import { WhatsappRequestDto } from './dto/whatsapp-request.dto';
+import { WhatsappVerifyDto } from './dto/whatsapp-verify.dto';
+import { Enable2faDto } from './dto/enable-2fa.dto';
+import { Login2faDto } from './dto/login-2fa.dto';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { CurrentUser, AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 import { Throttle } from '@nestjs/throttler';
@@ -72,5 +78,45 @@ export class AuthController {
   @Post('google')
   async googleLogin(@Body('idToken') idToken: string) {
     return this.authService.googleLogin(idToken);
+  }
+
+  @Post('apple')
+  async appleLogin(@Body() dto: AppleLoginDto) {
+    return this.authService.appleLogin(dto.identityToken);
+  }
+
+  @Post('facebook')
+  async facebookLogin(@Body() dto: FacebookLoginDto) {
+    return this.authService.facebookLogin(dto.accessToken);
+  }
+
+  @Post('whatsapp/request')
+  async whatsappRequest(@Body() dto: WhatsappRequestDto) {
+    return this.authService.whatsappRequest(dto.phone);
+  }
+
+  @Post('whatsapp/verify')
+  async whatsappVerify(@Body() dto: WhatsappVerifyDto) {
+    return this.authService.whatsappVerify(dto.phone, dto.code);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Post('2fa/enable')
+  async enable2fa(@CurrentUser() user: AuthenticatedUser) {
+    return this.authService.enable2fa(user.userId);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Post('2fa/verify')
+  async verify2fa(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: Enable2faDto,
+  ) {
+    return this.authService.verify2fa(user.userId, dto.token);
+  }
+
+  @Post('login/2fa')
+  async loginWith2fa(@Body() dto: Login2faDto) {
+    return this.authService.loginWith2fa(dto.temporaryToken, dto.code);
   }
 }
