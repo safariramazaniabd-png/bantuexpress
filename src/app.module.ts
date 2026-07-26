@@ -1,6 +1,9 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
-import { APP_FILTER, APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
+import { APP_FILTER, APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
+import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
+import { RolesGuard } from './common/guards/roles.guard';
+
 
 import databaseConfig from './config/database.config';
 import authConfig from './config/auth.config';
@@ -24,6 +27,7 @@ import { SearchModule } from './modules/search/search.module';
 import { QrCodesModule } from './modules/qrcodes/qrcodes.module';
 import { BusinessProfilesModule } from './modules/business-profiles/business-profiles.module';
 import { EmergencyModule } from './modules/emergency/emergency.module';
+import { AdminModule } from './modules/admin/admin.module';
 
 @Module({
   imports: [
@@ -60,10 +64,14 @@ import { EmergencyModule } from './modules/emergency/emergency.module';
     QrCodesModule,
     BusinessProfilesModule,
     EmergencyModule,
+    AdminModule,
   ],
   providers: [
     // Garde anti-abus globale
     { provide: APP_GUARD, useClass: ThrottlerGuard },
+
+    // Garde des rôles globale - vérifie @Roles() sur les contrôleurs
+    { provide: APP_GUARD, useClass: RolesGuard },
 
     // Filtre d'exception global - reponse d'erreur uniforme sur toute l'API
     { provide: APP_FILTER, useClass: GlobalExceptionFilter },
