@@ -1,7 +1,10 @@
 import { Logger, ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
+import { NestExpressApplication } from '@nestjs/platform-express';
 import helmet from 'helmet';
+import * as express from 'express';
+import * as path from 'path';
 import { AppModule } from './app.module';
 
 /**
@@ -19,7 +22,7 @@ import { AppModule } from './app.module';
 async function bootstrap(): Promise<void> {
   const logger = new Logger('Bootstrap');
 
-  const app = await NestFactory.create(AppModule, {
+  const app = await NestFactory.create<NestExpressApplication>(AppModule, {
     // Recommande en production : desactive les logs verbeux par defaut
     // de Nest au profit du logger applicatif structure (a brancher plus
     // tard, ex. Pino/Winston, en Module DevOps).
@@ -28,7 +31,9 @@ async function bootstrap(): Promise<void> {
 
   const configService = app.get(ConfigService);
 
-  app.use(helmet());
+  app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' } }));
+
+  app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')));
 
   app.enableCors({
     origin: configService.get<string>('CORS_ORIGIN') ?? true,
