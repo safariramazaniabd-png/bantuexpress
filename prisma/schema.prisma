@@ -27,6 +27,22 @@ enum BusinessType {
   GOVERNMENT
 }
 
+enum DeliveryStatus {
+  PENDING
+  ASSIGNED
+  PICKED_UP
+  IN_TRANSIT
+  DELIVERED
+  CANCELLED
+}
+
+enum PackageSize {
+  SMALL
+  MEDIUM
+  LARGE
+  EXTRA_LARGE
+}
+
 enum LandmarkCategory {
   ROUTE
   NEIGHBORHOOD
@@ -73,6 +89,8 @@ model User {
   qrCodes                 QrCode[]
   businessProfiles        BusinessProfile[]
   businessMemberships     BusinessMember[]
+  clientDeliveries        Delivery[]       @relation("DeliveryClient")
+  courierDeliveries       Delivery[]       @relation("DeliveryCourier")
 }
 
 model Profile {
@@ -231,4 +249,47 @@ model BusinessMember {
 
   @@unique([businessId, userId])
   @@index([userId])
+}
+
+model Delivery {
+  id              String         @id @default(uuid()) @db.Uuid
+  clientId        String         @db.Uuid
+  courierId       String?        @db.Uuid
+  status          DeliveryStatus @default(PENDING)
+  packageSize     PackageSize    @default(MEDIUM)
+  description     String?
+  pickupAddress   String
+  pickupLat       Float
+  pickupLng       Float
+  dropoffAddress  String
+  dropoffLat      Float
+  dropoffLng      Float
+  distanceKm      Float?
+  price           Decimal?       @db.Decimal(10, 2)
+  pickedUpAt      DateTime?
+  deliveredAt     DateTime?
+  cancelledAt     DateTime?
+  cancelledReason String?
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  client          User               @relation("DeliveryClient", fields: [clientId], references: [id])
+  courier         User?              @relation("DeliveryCourier", fields: [courierId], references: [id])
+  tracking        DeliveryTracking[]
+
+  @@index([status])
+  @@index([clientId])
+  @@index([courierId])
+}
+
+model DeliveryTracking {
+  id         String   @id @default(uuid()) @db.Uuid
+  deliveryId String   @db.Uuid
+  latitude   Float
+  longitude  Float
+  recordedAt DateTime @default(now())
+
+  delivery   Delivery @relation(fields: [deliveryId], references: [id], onDelete: Cascade)
+
+  @@index([deliveryId, recordedAt])
 }
