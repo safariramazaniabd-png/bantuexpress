@@ -1,12 +1,18 @@
-import { IsOptional, IsString, IsEnum, IsNumber, Min } from 'class-validator';
+import { IsOptional, IsString, IsEnum, IsNumber, Min, Max } from 'class-validator';
 import { Type } from 'class-transformer';
-import { LandmarkCategory } from '@prisma/client';
 
 export enum SearchType {
   PEOPLE = 'people',
   LANDMARKS = 'landmarks',
   ADDRESSES = 'addresses',
+  BUSINESSES = 'businesses',
   ALL = 'all',
+}
+
+export enum SearchSort {
+  RELEVANCE = 'relevance',
+  DISTANCE = 'distance',
+  NAME = 'name',
 }
 
 export class SearchQueryDto {
@@ -27,8 +33,29 @@ export class SearchQueryDto {
   province?: string;
 
   @IsOptional()
-  @IsEnum(LandmarkCategory)
-  category?: LandmarkCategory;
+  @IsString()
+  category?: string;
+
+  @IsOptional()
+  @IsNumber()
+  @Type(() => Number)
+  lat?: number;
+
+  @IsOptional()
+  @IsNumber()
+  @Type(() => Number)
+  lng?: number;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(1)
+  @Max(50_000)
+  @Type(() => Number)
+  radius?: number;
+
+  @IsOptional()
+  @IsEnum(SearchSort)
+  sort?: SearchSort;
 
   @IsOptional()
   @IsNumber()
@@ -39,6 +66,19 @@ export class SearchQueryDto {
   @IsOptional()
   @IsNumber()
   @Min(1)
+  @Max(100)
+  @Type(() => Number)
+  limit?: number;
+}
+
+export class SuggestionQueryDto {
+  @IsString()
+  q: string;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(1)
+  @Max(20)
   @Type(() => Number)
   limit?: number;
 }

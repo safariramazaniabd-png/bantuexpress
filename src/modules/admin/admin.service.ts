@@ -4,6 +4,7 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
+import { AuditService } from '../audit/audit.service';
 import { AdminUserQueryDto } from './dto/admin-user-query.dto';
 import { ChangeRoleDto } from './dto/change-role.dto';
 import { ToggleUserStatusDto } from './dto/toggle-user-status.dto';
@@ -15,7 +16,10 @@ import { ReportStatus, UserRole } from '@prisma/client';
 
 @Injectable()
 export class AdminService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly auditService: AuditService,
+  ) {}
 
   async findAllUsers(query: AdminUserQueryDto) {
     const { search, role, isActive, page = 1, limit = 20 } = query;
@@ -76,7 +80,7 @@ export class AdminService {
       data: { role: dto.role },
     });
 
-    await this.logAction(adminId, 'USER_ROLE_CHANGE', 'User', id, {
+    await this.auditService.log(adminId, 'USER_ROLE_CHANGE', 'User', id, {
       from: user.role,
       to: dto.role,
     });
@@ -93,7 +97,7 @@ export class AdminService {
       data: { isActive: dto.isActive },
     });
 
-    await this.logAction(
+    await this.auditService.log(
       adminId,
       dto.isActive ? 'USER_ACTIVATE' : 'USER_DEACTIVATE',
       'User',
@@ -165,7 +169,7 @@ export class AdminService {
       },
     });
 
-    await this.logAction(adminId, 'REPORT_REVIEW', 'ContentReport', id, {
+    await this.auditService.log(adminId, 'REPORT_REVIEW', 'ContentReport', id, {
       status: dto.status,
       notes: dto.notes,
     });
@@ -254,50 +258,12 @@ export class AdminService {
   }
 
   async findAllAuditLogs(query: { action?: string; page?: number; limit?: number }) {
-    const { action, page = 1, limit = 20 } = query;
-    const where: any = {};
-    if (action) where.action = action;
-
-    const skip = (page - 1) * limit;
-
-    const [data, total] = await Promise.all([
-      this.prisma.adminAuditLog.findMany({
-        where,
-        skip,
-        take: limit,
-        orderBy: { createdAt: 'desc' },
-        include: { admin: true },
-      }),
-      this.prisma.adminAuditLog.count({ where }),
-    ]);
-
-    return { data, meta: { total, page, limit } };
+    return this.auditService.findAll(query);
   }
 
   async findAuditLog(id: string) {
-    const log = await this.prisma.adminAuditLog.findUnique({
-      where: { id },
-      include: { admin: true },
-    });
+    const log = await this.auditService.findOne(id);
     if (!log) throw new NotFoundException('Audit log not found');
     return log;
-  }
-
-  private async logAction(
-    adminId: string,
-    action: string,
-    targetType?: string,
-    targetId?: string,
-    metadata?: Record<string, unknown>,
-  ) {
-    return this.prisma.adminAuditLog.create({
-      data: {
-        adminId,
-        action,
-        targetType,
-        targetId,
-        metadata: (metadata ?? undefined) as any,
-      },
-    });
   }
 }

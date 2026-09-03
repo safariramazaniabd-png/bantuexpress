@@ -3,14 +3,18 @@ import {
   IsOptional,
   IsEnum,
   IsBoolean,
+  IsEmail,
   IsUrl,
   MinLength,
+  MaxLength,
+  Matches,
 } from 'class-validator';
 import { BusinessType } from '@prisma/client';
 
 export class CreateBusinessProfileDto {
   @IsString()
   @MinLength(1)
+  @MaxLength(200)
   name: string;
 
   @IsOptional()
@@ -19,10 +23,12 @@ export class CreateBusinessProfileDto {
 
   @IsOptional()
   @IsString()
+  @MaxLength(1000)
   description?: string;
 
   @IsOptional()
   @IsString()
+  @MaxLength(100)
   sector?: string;
 
   @IsOptional()
@@ -34,22 +40,25 @@ export class CreateBusinessProfileDto {
   website?: string;
 
   @IsOptional()
-  @IsString()
+  @IsEmail()
   email?: string;
 
   @IsOptional()
-  @IsString()
+  @Matches(/^\+?[1-9]\d{6,14}$/)
   phone?: string;
 
   @IsString()
+  @MinLength(1)
+  @MaxLength(100)
   city: string;
 
   @IsOptional()
   @IsString()
+  @MaxLength(100)
   province?: string;
 
   @IsOptional()
-  @IsString()
+  @Matches(/^[A-Z]{2}$/)
   country?: string;
 
   @IsOptional()

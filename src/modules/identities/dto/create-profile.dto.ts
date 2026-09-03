@@ -4,6 +4,7 @@ import {
   IsArray,
   IsBoolean,
   IsEnum,
+  IsDateString,
   MinLength,
   MaxLength,
   ArrayMaxSize,
@@ -20,6 +21,15 @@ export class CreateProfileDto {
   @MinLength(1)
   @MaxLength(100)
   lastName: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(10)
+  gender?: string;
+
+  @IsOptional()
+  @IsDateString()
+  birthDate?: string;
 
   @IsOptional()
   @IsString()

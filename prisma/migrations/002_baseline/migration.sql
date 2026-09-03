@@ -1,0 +1,1 @@
+-- Baseline migration: marks the initial schema as applied

@@ -1,0 +1,12 @@
+import { IsString, MinLength, MaxLength } from 'class-validator';
+
+export class CreateFavoriteDto {
+  @IsString()
+  @MinLength(1)
+  @MaxLength(50)
+  entityType: string;
+
+  @IsString()
+  @MinLength(1)
+  entityId: string;
+}

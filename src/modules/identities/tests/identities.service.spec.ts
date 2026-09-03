@@ -9,6 +9,7 @@ const mockPrisma = {
     findUnique: jest.fn(),
     create: jest.fn(),
     update: jest.fn(),
+    delete: jest.fn(),
   },
 };
 
@@ -210,6 +211,25 @@ describe('IdentitiesService', () => {
     });
   });
 
+  describe('deleteProfile', () => {
+    it('should delete the profile', async () => {
+      mockPrisma.profile.findUnique.mockResolvedValue(mockProfile);
+      mockPrisma.profile.delete.mockResolvedValue(mockProfile);
+
+      await service.deleteProfile('user-1');
+
+      expect(mockPrisma.profile.delete).toHaveBeenCalledWith(
+        { where: { userId: 'user-1' } },
+      );
+    });
+
+    it('should throw NotFoundException if no profile', async () => {
+      mockPrisma.profile.findUnique.mockResolvedValue(null);
+
+      await expect(service.deleteProfile('user-1')).rejects.toThrow(NotFoundException);
+    });
+  });
+
   describe('generateQrCode', () => {
     it('should generate a QR code string', async () => {
       mockPrisma.profile.findUnique.mockResolvedValue({ ...mockProfile, personalQrCode: null });
@@ -245,6 +265,86 @@ describe('IdentitiesService', () => {
       mockPrisma.profile.findUnique.mockResolvedValue(null);
 
       await expect(service.generateQrCode('user-1')).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  describe('verifyProfile', () => {
+    it('should set verifiedAt', async () => {
+      mockPrisma.profile.findUnique.mockResolvedValue(mockProfile);
+      const updated = { ...mockProfile, verifiedAt: new Date() };
+      mockPrisma.profile.update.mockResolvedValue(updated);
+
+      const result = await service.verifyProfile('user-1');
+
+      expect(result.verifiedAt).toBeDefined();
+      expect(mockPrisma.profile.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { userId: 'user-1' },
+          data: expect.objectContaining({ verifiedAt: expect.any(Date) }),
+        }),
+      );
+    });
+
+    it('should throw NotFoundException if no profile', async () => {
+      mockPrisma.profile.findUnique.mockResolvedValue(null);
+
+      await expect(service.verifyProfile('user-1')).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  describe('uploadIdentityDocument', () => {
+    it('should reject invalid file types', async () => {
+      mockPrisma.profile.findUnique.mockResolvedValue(mockProfile);
+
+      await expect(
+        service.uploadIdentityDocument('user-1', {
+          buffer: Buffer.from('test'),
+          mimetype: 'text/plain',
+          originalname: 'test.txt',
+          size: 4,
+        }),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('should throw if profile does not exist', async () => {
+      mockPrisma.profile.findUnique.mockResolvedValue(null);
+
+      await expect(
+        service.uploadIdentityDocument('user-1', {
+          buffer: Buffer.from('test'),
+          mimetype: 'image/jpeg',
+          originalname: 'test.jpg',
+          size: 4,
+        }),
+      ).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  describe('uploadDigitalSignature', () => {
+    it('should reject invalid file types', async () => {
+      mockPrisma.profile.findUnique.mockResolvedValue(mockProfile);
+
+      await expect(
+        service.uploadDigitalSignature('user-1', {
+          buffer: Buffer.from('test'),
+          mimetype: 'text/plain',
+          originalname: 'test.txt',
+          size: 4,
+        }),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('should throw if profile does not exist', async () => {
+      mockPrisma.profile.findUnique.mockResolvedValue(null);
+
+      await expect(
+        service.uploadDigitalSignature('user-1', {
+          buffer: Buffer.from('test'),
+          mimetype: 'image/jpeg',
+          originalname: 'test.jpg',
+          size: 4,
+        }),
+      ).rejects.toThrow(NotFoundException);
     });
   });
 });

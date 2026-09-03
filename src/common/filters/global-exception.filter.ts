@@ -6,6 +6,7 @@ import {
   HttpStatus,
   Logger,
 } from '@nestjs/common';
+import * as Sentry from '@sentry/node';
 import { Request, Response } from 'express';
 
 /**
@@ -35,6 +36,9 @@ export class GlobalExceptionFilter implements ExceptionFilter {
         `${request.method} ${request.url} -> ${status} : ${(exception as Error)?.message}`,
         (exception as Error)?.stack,
       );
+      Sentry.captureException(exception, {
+        tags: { status: String(status), method: request.method, path: request.url },
+      });
     } else {
       this.logger.warn(`${request.method} ${request.url} -> ${status} : ${JSON.stringify(message)}`);
     }

@@ -104,100 +104,211 @@ export class GeoService {
       });
     }
 
-    const earthRadius = 6371;
-    const latRad = (latitude * Math.PI) / 180;
-    const latMin = latitude - (radius / earthRadius) * (180 / Math.PI);
-    const latMax = latitude + (radius / earthRadius) * (180 / Math.PI);
-    const lngMin =
-      longitude -
-      (radius / earthRadius) * (180 / Math.PI) / Math.cos(latRad);
-    const lngMax =
-      longitude +
-      (radius / earthRadius) * (180 / Math.PI) / Math.cos(latRad);
-
-    const results: {
-      users?: any[];
-      landmarks?: any[];
-    } = {};
+    const results: NearbyResult = {};
 
     if (type === 'users' || type === 'all') {
-      const recentPositions = await this.prisma.userPosition.findMany({
-        where: {
-          userId: { not: userId },
-          latitude: { gte: latMin, lte: latMax },
-          longitude: { gte: lngMin, lte: lngMax },
-        },
-        orderBy: { recordedAt: 'desc' },
-        distinct: ['userId'],
-      });
-
-      const filtered = recentPositions
-        .map((p) => ({
-          userId: p.userId,
-          latitude: p.latitude,
-          longitude: p.longitude,
-          accuracy: p.accuracy,
-          distance: this.haversine(latitude, longitude, p.latitude, p.longitude),
-        }))
-        .filter((p) => p.distance <= radius / 1000)
-        .sort((a, b) => a.distance - b.distance);
-
-      const start = (page - 1) * limit;
-      results.users = filtered.slice(start, start + limit);
+      results.users = await this.findNearbyUsers(userId, latitude, longitude, radius, page, limit);
     }
 
     if (type === 'landmarks' || type === 'all') {
-      const landmarks = await this.prisma.landmark.findMany({
-        where: {
-          deletedAt: null,
-          isPublic: true,
-          latitude: { gte: latMin, lte: latMax },
-          longitude: { gte: lngMin, lte: lngMax },
-        },
-      });
-
-      const filtered = landmarks
-        .map((l) => ({
-          ...l,
-          distance: this.haversine(latitude, longitude, l.latitude, l.longitude),
-        }))
-        .filter((l) => l.distance <= radius / 1000)
-        .sort((a, b) => a.distance - b.distance);
-
-      const start = (page - 1) * limit;
-      results.landmarks = filtered.slice(start, start + limit);
+      results.landmarks = await this.findNearbyLandmarks(latitude, longitude, radius, page, limit);
     }
 
     return results;
   }
 
+  private async findNearbyUsers(
+    userId: string,
+    latitude: number,
+    longitude: number,
+    radius: number,
+    page: number,
+    limit: number,
+  ) {
+    try {
+      const rows = await this.prisma.$queryRawUnsafe<Array<{
+        userId: string;
+        latitude: number;
+        longitude: number;
+        accuracy: number | null;
+        distance: number;
+      }>>(
+        `SELECT DISTINCT ON (up."userId") up."userId", up.latitude, up.longitude, up.accuracy,
+          ST_Distance(up.location, ST_SetSRID(ST_MakePoint($1, $2), 4326)::geography) / 1000 AS distance
+         FROM "UserPosition" up
+         WHERE up."userId" != $3
+           AND up.location IS NOT NULL
+           AND ST_DWithin(up.location, ST_SetSRID(ST_MakePoint($1, $2), 4326)::geography, $4)
+         ORDER BY up."userId", up."recordedAt" DESC
+         OFFSET $5 LIMIT $6`,
+        longitude, latitude, userId, radius, (page - 1) * limit, limit,
+      );
+      return rows.map((r) => ({
+        userId: r.userId,
+        latitude: Number(r.latitude),
+        longitude: Number(r.longitude),
+        accuracy: r.accuracy,
+        distance: Number(r.distance),
+      }));
+    } catch {
+      return this.findNearbyUsersFallback(userId, latitude, longitude, radius, page, limit);
+    }
+  }
+
+  private async findNearbyUsersFallback(
+    userId: string,
+    latitude: number,
+    longitude: number,
+    radius: number,
+    page: number,
+    limit: number,
+  ) {
+    const earthRadius = 6371;
+    const latRad = (latitude * Math.PI) / 180;
+    const latMin = latitude - (radius / earthRadius) * (180 / Math.PI);
+    const latMax = latitude + (radius / earthRadius) * (180 / Math.PI);
+    const lngMin = longitude - (radius / earthRadius) * (180 / Math.PI) / Math.cos(latRad);
+    const lngMax = longitude + (radius / earthRadius) * (180 / Math.PI) / Math.cos(latRad);
+
+    const recentPositions = await this.prisma.userPosition.findMany({
+      where: {
+        userId: { not: userId },
+        latitude: { gte: latMin, lte: latMax },
+        longitude: { gte: lngMin, lte: lngMax },
+      },
+      orderBy: { recordedAt: 'desc' },
+      distinct: ['userId'],
+    });
+
+    const filtered = recentPositions
+      .map((p) => ({
+        userId: p.userId,
+        latitude: p.latitude,
+        longitude: p.longitude,
+        accuracy: p.accuracy,
+        distance: this.haversine(latitude, longitude, p.latitude, p.longitude),
+      }))
+      .filter((p) => p.distance <= radius / 1000)
+      .sort((a, b) => a.distance - b.distance);
+
+    const start = (page - 1) * limit;
+    return filtered.slice(start, start + limit);
+  }
+
+  private async findNearbyLandmarks(
+    latitude: number,
+    longitude: number,
+    radius: number,
+    page: number,
+    limit: number,
+  ) {
+    try {
+      const rows = await this.prisma.$queryRawUnsafe<Array<Record<string, unknown>>>(
+        `SELECT l.*,
+          ST_Distance(l.location, ST_SetSRID(ST_MakePoint($1, $2), 4326)::geography) / 1000 AS distance
+         FROM "Landmark" l
+         WHERE l."deletedAt" IS NULL
+           AND l."isPublic" = true
+           AND l.location IS NOT NULL
+           AND ST_DWithin(l.location, ST_SetSRID(ST_MakePoint($1, $2), 4326)::geography, $3)
+         ORDER BY distance
+         OFFSET $4 LIMIT $5`,
+        longitude, latitude, radius, (page - 1) * limit, limit,
+      );
+      return rows.map((r: any) => ({ ...r, distance: Number(r.distance) }));
+    } catch {
+      return this.findNearbyLandmarksFallback(latitude, longitude, radius, page, limit);
+    }
+  }
+
+  private async findNearbyLandmarksFallback(
+    latitude: number,
+    longitude: number,
+    radius: number,
+    page: number,
+    limit: number,
+  ) {
+    const earthRadius = 6371;
+    const latRad = (latitude * Math.PI) / 180;
+    const latMin = latitude - (radius / earthRadius) * (180 / Math.PI);
+    const latMax = latitude + (radius / earthRadius) * (180 / Math.PI);
+    const lngMin = longitude - (radius / earthRadius) * (180 / Math.PI) / Math.cos(latRad);
+    const lngMax = longitude + (radius / earthRadius) * (180 / Math.PI) / Math.cos(latRad);
+
+    const landmarks = await this.prisma.landmark.findMany({
+      where: {
+        deletedAt: null,
+        isPublic: true,
+        latitude: { gte: latMin, lte: latMax },
+        longitude: { gte: lngMin, lte: lngMax },
+      },
+    });
+
+    const filtered = landmarks
+      .map((l) => ({
+        ...l,
+        distance: this.haversine(latitude, longitude, l.latitude, l.longitude),
+      }))
+      .filter((l) => l.distance <= radius / 1000)
+      .sort((a, b) => a.distance - b.distance);
+
+    const start = (page - 1) * limit;
+    return filtered.slice(start, start + limit);
+  }
+
   async getMarkersInBounds(query: MarkerQueryDto) {
     const { swLat, swLng, neLat, neLng, category, limit = 100 } = query;
 
-    const where: any = {
-      deletedAt: null,
-      isPublic: true,
-      latitude: { gte: swLat, lte: neLat },
-      longitude: { gte: swLng, lte: neLng },
-    };
+    try {
+      const bbox = `ST_SetSRID(ST_MakeEnvelope(${swLng}, ${swLat}, ${neLng}, ${neLat}, 4326), 4326)`;
+      let sql = `SELECT id, name, category, latitude, longitude
+                 FROM "Landmark"
+                 WHERE "deletedAt" IS NULL AND "isPublic" = true
+                   AND location IS NOT NULL
+                   AND ST_Intersects(location, ${bbox})`;
+      const params: unknown[] = [];
 
-    if (category) {
-      where.category = category;
+      if (category) {
+        params.push(category);
+        sql += ` AND category = $${params.length}`;
+      }
+
+      sql += ` ORDER BY "createdAt" DESC LIMIT ${limit}`;
+
+      const rows = await this.prisma.$queryRawUnsafe<Array<{ id: string; name: string; category: string; latitude: number; longitude: number }>>(sql, ...params);
+      return rows.map((r) => ({
+        id: r.id,
+        name: r.name,
+        category: r.category,
+        latitude: Number(r.latitude),
+        longitude: Number(r.longitude),
+      }));
+    } catch {
+      const where: any = {
+        deletedAt: null,
+        isPublic: true,
+        latitude: { gte: swLat, lte: neLat },
+        longitude: { gte: swLng, lte: neLng },
+      };
+
+      if (category) {
+        where.category = category;
+      }
+
+      const landmarks = await this.prisma.landmark.findMany({
+        where,
+        take: limit,
+        orderBy: { createdAt: 'desc' },
+      });
+
+      return landmarks.map((l) => ({
+        id: l.id,
+        name: l.name,
+        category: l.category,
+        latitude: l.latitude,
+        longitude: l.longitude,
+      }));
     }
-
-    const landmarks = await this.prisma.landmark.findMany({
-      where,
-      take: limit,
-      orderBy: { createdAt: 'desc' },
-    });
-
-    return landmarks.map((l) => ({
-      id: l.id,
-      name: l.name,
-      category: l.category,
-      latitude: l.latitude,
-      longitude: l.longitude,
-    }));
   }
 
   async calculateRoute(dto: CalculateRouteDto) {

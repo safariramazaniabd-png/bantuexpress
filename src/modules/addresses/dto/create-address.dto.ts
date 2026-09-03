@@ -4,6 +4,7 @@ import {
   IsBoolean,
   IsEnum,
   MaxLength,
+  Matches,
 } from 'class-validator';
 import { AddressType } from '@prisma/client';
 
@@ -37,8 +38,7 @@ export class CreateAddressDto {
   province?: string;
 
   @IsOptional()
-  @IsString()
-  @MaxLength(2)
+  @Matches(/^[A-Z]{2}$/)
   country?: string;
 
   @IsOptional()

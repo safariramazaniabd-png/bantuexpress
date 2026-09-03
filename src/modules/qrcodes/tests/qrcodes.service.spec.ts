@@ -189,6 +189,23 @@ describe('QrCodesService', () => {
     });
   });
 
+  describe('generateImage', () => {
+    it('should return a PNG buffer', async () => {
+      mockPrisma.qrCode.findUnique.mockResolvedValue(mockQr);
+
+      const result = await service.generateImage('abc123def456');
+
+      expect(Buffer.isBuffer(result)).toBe(true);
+      expect(result.length).toBeGreaterThan(100);
+    });
+
+    it('should throw if QR not found', async () => {
+      mockPrisma.qrCode.findUnique.mockResolvedValue(null);
+
+      await expect(service.generateImage('bad-code')).rejects.toThrow(NotFoundException);
+    });
+  });
+
   describe('recordScan', () => {
     it('should increment scan counter', async () => {
       mockPrisma.qrCode.findUnique.mockResolvedValue(mockQr);

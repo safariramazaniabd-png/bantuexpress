@@ -17,6 +17,23 @@ enum UserRole {
   COURIER
   TRANSPORTER
   DELIVERY_AGENCY
+  NGO
+  POLICE
+  FIREFIGHTER
+  AMBULANCE
+}
+
+enum OtpChannel {
+  EMAIL
+  SMS
+}
+
+enum OtpPurpose {
+  SIGNUP
+  LOGIN
+  VERIFY_EMAIL
+  VERIFY_PHONE
+  WHATSAPP
 }
 
 enum MessageType {
@@ -117,51 +134,150 @@ enum ReportStatus {
 }
 
 model User {
-  id                      String    @id @default(uuid()) @db.Uuid
-  email                   String    @unique
-  phone                   String    @unique
-  passwordHash            String
-  role                    UserRole  @default(INDIVIDUAL)
-  isActive                Boolean   @default(true)
-  refreshToken            String?
-  emailVerifiedAt         DateTime?
-  phoneVerifiedAt         DateTime?
-  verificationCode        String?
+  id                        String    @id @default(uuid()) @db.Uuid
+  email                     String    @unique
+  phone                     String    @unique
+  passwordHash              String
+  role                      UserRole  @default(INDIVIDUAL)
+  isActive                  Boolean   @default(true)
+  refreshToken              String?
+  refreshTokenJti           String?
+  emailVerifiedAt           DateTime?
+  phoneVerifiedAt           DateTime?
+  verificationCode          String?
   verificationCodeExpiresAt DateTime?
-  resetPasswordToken      String?
-  resetPasswordExpiresAt  DateTime?
-  googleId                String?   @unique
-  appleId                 String?   @unique
-  facebookId              String?   @unique
-  whatsappId              String?   @unique
-  twoFactorSecret         String?
-  twoFactorEnabled        Boolean   @default(false)
-  lastLoginAt             DateTime?
-  createdAt               DateTime  @default(now())
-  updatedAt               DateTime  @updatedAt
+  resetPasswordToken        String?
+  resetPasswordExpiresAt    DateTime?
+  googleId                  String?   @unique
+  appleId                   String?   @unique
+  facebookId                String?   @unique
+  whatsappId                String?   @unique
+  twoFactorSecret           String?
+  twoFactorEnabled          Boolean   @default(false)
+  failedLoginAttempts       Int       @default(0)
+  lockedUntil               DateTime?
+  passwordChangedAt         DateTime?
+  lastLoginAt               DateTime?
+  createdAt                 DateTime  @default(now())
+  updatedAt                 DateTime  @updatedAt
 
-  profile                 Profile?
-  addresses               Address[]
-  landmarks               Landmark[]
-  positions               UserPosition[]
-  routes                  Route[]
-  qrCodes                 QrCode[]
-  businessProfiles        BusinessProfile[]
-  businessMemberships     BusinessMember[]
-  clientDeliveries        Delivery[]            @relation("DeliveryClient")
-  courierDeliveries       Delivery[]            @relation("DeliveryCourier")
-  emergencyReports        Emergency[]           @relation("EmergencyReporter")
-  emergencyResponses      Emergency[]           @relation("EmergencyResponder")
-  reports                 ContentReport[]        @relation("ContentReportReporter")
-  reviewedReports         ContentReport[]        @relation("ContentReportReviewer")
-  auditLogs               AdminAuditLog[]
-  organizedEvents         Event[]               @relation("EventOrganizer")
-  favorites               Favorite[]
-  reviews                 Review[]
-  notifications           Notification[]
+  profile                  Profile?
+  addresses                Address[]
+  landmarks                Landmark[]
+  positions                UserPosition[]
+  routes                   Route[]
+  qrCodes                  QrCode[]
+  businessProfiles         BusinessProfile[]
+  businessMemberships      BusinessMember[]
+  clientDeliveries         Delivery[]                @relation("DeliveryClient")
+  courierDeliveries        Delivery[]                @relation("DeliveryCourier")
+  emergencyReports         Emergency[]               @relation("EmergencyReporter")
+  emergencyResponses       Emergency[]               @relation("EmergencyResponder")
+  reports                  ContentReport[]           @relation("ContentReportReporter")
+  reviewedReports          ContentReport[]           @relation("ContentReportReviewer")
+  auditLogs                AdminAuditLog[]
+  organizedEvents          Event[]                   @relation("EventOrganizer")
+  favorites                Favorite[]
+  reviews                  Review[]
+  notifications            Notification[]
   conversationParticipants ConversationParticipant[]
-  sentMessages            Message[]             @relation("MessageSender")
-  shareLinks              ShareLink[]
+  sentMessages             Message[]                 @relation("MessageSender")
+  shareLinks               ShareLink[]
+  refreshTokenSessions     RefreshTokenSession[]
+  loginAttempts            LoginAttempt[]
+  otpCodes                 OtpCode[]
+  passwordHistory          PasswordHistory[]
+  roleAssignments          UserRoleAssignment[]
+}
+
+model RefreshTokenSession {
+  id         String    @id @default(uuid()) @db.Uuid
+  userId     String    @db.Uuid
+  jti        String    @unique
+  deviceInfo String?
+  ipAddress  String?
+  userAgent  String?
+  expiresAt  DateTime
+  revokedAt  DateTime?
+  createdAt  DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([jti])
+  @@index([expiresAt])
+}
+
+model LoginAttempt {
+  id         String   @id @default(uuid()) @db.Uuid
+  userId     String   @db.Uuid
+  success    Boolean
+  method     String   @default("password")
+  ipAddress  String?
+  userAgent  String?
+  failReason String?
+  createdAt  DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId, createdAt])
+  @@index([createdAt])
+}
+
+model Role {
+  id          String   @id @default(uuid()) @db.Uuid
+  slug        String   @unique
+  name        String
+  description String?
+  isPublic    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+
+  userAssignments UserRoleAssignment[]
+
+  @@index([slug])
+}
+
+model UserRoleAssignment {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @db.Uuid
+  roleId    String   @db.Uuid
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role Role @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, roleId])
+  @@index([roleId])
+}
+
+model OtpCode {
+  id          String     @id @default(uuid()) @db.Uuid
+  userId      String?    @db.Uuid
+  identifier  String
+  channel     OtpChannel
+  purpose     OtpPurpose
+  codeHash    String
+  attempts    Int        @default(0)
+  maxAttempts Int        @default(5)
+  expiresAt   DateTime
+  consumedAt  DateTime?
+  createdAt   DateTime   @default(now())
+
+  user User? @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([identifier, purpose, createdAt])
+  @@index([userId])
+}
+
+model PasswordHistory {
+  id           String   @id @default(uuid()) @db.Uuid
+  userId       String   @db.Uuid
+  passwordHash String
+  createdAt    DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
 }
 
 model Profile {
@@ -185,7 +301,7 @@ model Profile {
   createdAt              DateTime              @default(now())
   updatedAt              DateTime              @updatedAt
 
-  user                   User                  @relation(fields: [userId], references: [id])
+  user User @relation(fields: [userId], references: [id])
 }
 
 model Address {
@@ -208,7 +324,7 @@ model Address {
   createdAt  DateTime    @default(now())
   updatedAt  DateTime    @updatedAt
 
-  user       User        @relation(fields: [userId], references: [id])
+  user User @relation(fields: [userId], references: [id])
 
   @@index([userId, deletedAt])
   @@index([city, province])
@@ -232,7 +348,7 @@ model Landmark {
   createdAt   DateTime         @default(now())
   updatedAt   DateTime         @updatedAt
 
-  user        User?            @relation(fields: [userId], references: [id])
+  user User? @relation(fields: [userId], references: [id])
 
   @@index([category])
   @@index([city, province])
@@ -249,7 +365,7 @@ model UserPosition {
   recordedAt DateTime @default(now())
   createdAt  DateTime @default(now())
 
-  user       User     @relation(fields: [userId], references: [id])
+  user User @relation(fields: [userId], references: [id])
 
   @@index([userId, recordedAt])
   @@index([recordedAt])
@@ -268,7 +384,7 @@ model Route {
   polyline    String?
   createdAt   DateTime @default(now())
 
-  user        User?    @relation(fields: [userId], references: [id])
+  user User? @relation(fields: [userId], references: [id])
 
   @@index([userId])
 }
@@ -283,7 +399,7 @@ model QrCode {
   lastScannedAt DateTime?
   createdAt     DateTime  @default(now())
 
-  user          User?     @relation(fields: [userId], references: [id])
+  user User? @relation(fields: [userId], references: [id])
 
   @@unique([entityType, entityId])
   @@index([code])
@@ -309,10 +425,10 @@ model BusinessProfile {
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
 
-  user        User              @relation(fields: [userId], references: [id])
-  members     BusinessMember[]
+  user         User             @relation(fields: [userId], references: [id])
+  members      BusinessMember[]
   openingHours OpeningHour[]
-  products    Product[]
+  products     Product[]
 
   @@index([type, isVerified])
   @@index([city, province])
@@ -320,14 +436,14 @@ model BusinessProfile {
 }
 
 model BusinessMember {
-  id         String          @id @default(uuid()) @db.Uuid
-  businessId String          @db.Uuid
-  userId     String          @db.Uuid
-  role       String          @default("member")
-  joinedAt   DateTime        @default(now())
+  id         String   @id @default(uuid()) @db.Uuid
+  businessId String   @db.Uuid
+  userId     String   @db.Uuid
+  role       String   @default("member")
+  joinedAt   DateTime @default(now())
 
-  business   BusinessProfile @relation(fields: [businessId], references: [id], onDelete: Cascade)
-  user       User            @relation(fields: [userId], references: [id])
+  business BusinessProfile @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  user     User            @relation(fields: [userId], references: [id])
 
   @@unique([businessId, userId])
   @@index([userId])
@@ -357,9 +473,9 @@ model Delivery {
   createdAt       DateTime       @default(now())
   updatedAt       DateTime       @updatedAt
 
-  client          User               @relation("DeliveryClient", fields: [clientId], references: [id])
-  courier         User?              @relation("DeliveryCourier", fields: [courierId], references: [id])
-  tracking        DeliveryTracking[]
+  client   User               @relation("DeliveryClient", fields: [clientId], references: [id])
+  courier  User?              @relation("DeliveryCourier", fields: [courierId], references: [id])
+  tracking DeliveryTracking[]
 
   @@index([status])
   @@index([clientId])
@@ -373,7 +489,7 @@ model DeliveryTracking {
   longitude  Float
   recordedAt DateTime @default(now())
 
-  delivery   Delivery @relation(fields: [deliveryId], references: [id], onDelete: Cascade)
+  delivery Delivery @relation(fields: [deliveryId], references: [id], onDelete: Cascade)
 
   @@index([deliveryId, recordedAt])
 }
@@ -396,8 +512,8 @@ model Emergency {
   createdAt       DateTime          @default(now())
   updatedAt       DateTime          @updatedAt
 
-  reporter        User              @relation("EmergencyReporter", fields: [reporterId], references: [id])
-  responder       User?             @relation("EmergencyResponder", fields: [responderId], references: [id])
+  reporter  User  @relation("EmergencyReporter", fields: [reporterId], references: [id])
+  responder User? @relation("EmergencyResponder", fields: [responderId], references: [id])
 
   @@index([status, type])
   @@index([reporterId])
@@ -405,35 +521,35 @@ model Emergency {
 }
 
 model ContentReport {
-  id            String       @id @default(uuid()) @db.Uuid
-  reporterId    String       @db.Uuid
-  entityType    String
-  entityId      String
-  reason        ReportReason @default(OTHER)
-  description   String?
-  status        ReportStatus @default(PENDING)
-  reviewedById  String?      @db.Uuid
-  reviewedAt    DateTime?
-  createdAt     DateTime     @default(now())
-  updatedAt     DateTime     @updatedAt
+  id           String       @id @default(uuid()) @db.Uuid
+  reporterId   String       @db.Uuid
+  entityType   String
+  entityId     String
+  reason       ReportReason @default(OTHER)
+  description  String?
+  status       ReportStatus @default(PENDING)
+  reviewedById String?      @db.Uuid
+  reviewedAt   DateTime?
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
 
-  reporter      User         @relation("ContentReportReporter", fields: [reporterId], references: [id])
-  reviewedBy    User?        @relation("ContentReportReviewer", fields: [reviewedById], references: [id])
+  reporter   User  @relation("ContentReportReporter", fields: [reporterId], references: [id])
+  reviewedBy User? @relation("ContentReportReviewer", fields: [reviewedById], references: [id])
 
   @@index([status])
   @@index([entityType, entityId])
 }
 
 model AdminAuditLog {
-  id          String   @id @default(uuid()) @db.Uuid
-  adminId     String   @db.Uuid
-  action      String
-  targetType  String?
-  targetId    String?
-  metadata    Json?    @db.JsonB
-  createdAt   DateTime @default(now())
+  id         String   @id @default(uuid()) @db.Uuid
+  adminId    String   @db.Uuid
+  action     String
+  targetType String?
+  targetId   String?
+  metadata   Json?    @db.JsonB
+  createdAt  DateTime @default(now())
 
-  admin       User     @relation(fields: [adminId], references: [id])
+  admin User @relation(fields: [adminId], references: [id])
 
   @@index([adminId])
   @@index([action])
@@ -441,13 +557,13 @@ model AdminAuditLog {
 }
 
 model OpeningHour {
-  id                String  @id @default(uuid()) @db.Uuid
-  businessProfileId String  @db.Uuid
+  id                String @id @default(uuid()) @db.Uuid
+  businessProfileId String @db.Uuid
   dayOfWeek         Int
   open              String
   close             String
 
-  businessProfile   BusinessProfile @relation(fields: [businessProfileId], references: [id], onDelete: Cascade)
+  businessProfile BusinessProfile @relation(fields: [businessProfileId], references: [id], onDelete: Cascade)
 
   @@unique([businessProfileId, dayOfWeek])
 }
@@ -462,7 +578,7 @@ model Product {
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
 
-  businessProfile   BusinessProfile @relation(fields: [businessProfileId], references: [id], onDelete: Cascade)
+  businessProfile BusinessProfile @relation(fields: [businessProfileId], references: [id], onDelete: Cascade)
 
   @@index([businessProfileId])
 }
@@ -474,7 +590,7 @@ model Favorite {
   entityId   String
   createdAt  DateTime @default(now())
 
-  user       User     @relation(fields: [userId], references: [id])
+  user User @relation(fields: [userId], references: [id])
 
   @@unique([userId, entityType, entityId])
   @@index([userId])
@@ -489,15 +605,15 @@ model Review {
   comment    String?
   createdAt  DateTime @default(now())
 
-  user       User     @relation(fields: [userId], references: [id])
+  user User @relation(fields: [userId], references: [id])
 
   @@index([entityType, entityId])
   @@index([userId])
 }
 
 model Event {
-  id          String   @id @default(uuid()) @db.Uuid
-  organizerId String   @db.Uuid
+  id          String    @id @default(uuid()) @db.Uuid
+  organizerId String    @db.Uuid
   name        String
   description String?
   address     String?
@@ -505,32 +621,32 @@ model Event {
   longitude   Float?
   startDate   DateTime
   endDate     DateTime?
-  qrCode      String?  @unique
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  qrCode      String?   @unique
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
 
-  organizer   User     @relation("EventOrganizer", fields: [organizerId], references: [id])
+  organizer User @relation("EventOrganizer", fields: [organizerId], references: [id])
 
   @@index([organizerId])
   @@index([startDate])
 }
 
 model Conversation {
-  id            String   @id @default(uuid()) @db.Uuid
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  id        String   @id @default(uuid()) @db.Uuid
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  participants  ConversationParticipant[]
-  messages      Message[]
+  participants ConversationParticipant[]
+  messages     Message[]
 }
 
 model ConversationParticipant {
-  id             String       @id @default(uuid()) @db.Uuid
-  conversationId String       @db.Uuid
-  userId         String       @db.Uuid
+  id             String @id @default(uuid()) @db.Uuid
+  conversationId String @db.Uuid
+  userId         String @db.Uuid
 
-  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
-  user           User         @relation(fields: [userId], references: [id])
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id])
 
   @@unique([conversationId, userId])
   @@index([userId])
@@ -544,8 +660,8 @@ model Message {
   type           MessageType @default(TEXT)
   createdAt      DateTime    @default(now())
 
-  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
-  sender         User         @relation("MessageSender", fields: [senderId], references: [id])
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  sender       User         @relation("MessageSender", fields: [senderId], references: [id])
 
   @@index([conversationId, createdAt])
 }
@@ -560,38 +676,38 @@ model Notification {
   readAt    DateTime?
   createdAt DateTime  @default(now())
 
-  user      User      @relation(fields: [userId], references: [id])
+  user User @relation(fields: [userId], references: [id])
 
   @@index([userId, readAt])
   @@index([createdAt])
 }
 
 model ShareLink {
-  id         String   @id @default(uuid()) @db.Uuid
-  userId     String   @db.Uuid
+  id         String    @id @default(uuid()) @db.Uuid
+  userId     String    @db.Uuid
   entityType String
   entityId   String
-  token      String   @unique
+  token      String    @unique
   expiresAt  DateTime?
-  createdAt  DateTime @default(now())
+  createdAt  DateTime  @default(now())
 
-  user       User     @relation(fields: [userId], references: [id])
+  user User @relation(fields: [userId], references: [id])
 
   @@index([token])
   @@index([userId])
 }
 
 model Category {
-  id          String    @id @default(uuid()) @db.Uuid
+  id          String   @id @default(uuid()) @db.Uuid
   name        String
-  slug        String    @unique
+  slug        String   @unique
   description String?
   icon        String?
-  parentId    String?   @db.Uuid
-  createdAt   DateTime  @default(now())
+  parentId    String?  @db.Uuid
+  createdAt   DateTime @default(now())
 
-  parent      Category? @relation("CategoryParent", fields: [parentId], references: [id])
-  children    Category[] @relation("CategoryParent")
+  parent   Category?  @relation("CategoryParent", fields: [parentId], references: [id])
+  children Category[] @relation("CategoryParent")
 
   @@index([slug])
   @@index([parentId])

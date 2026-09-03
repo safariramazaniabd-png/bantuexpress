@@ -4,6 +4,7 @@ import {
   IsArray,
   IsBoolean,
   IsEnum,
+  IsDateString,
   MaxLength,
   ArrayMaxSize,
 } from 'class-validator';
@@ -19,6 +20,15 @@ export class UpdateProfileDto {
   @IsString()
   @MaxLength(100)
   lastName?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(10)
+  gender?: string;
+
+  @IsOptional()
+  @IsDateString()
+  birthDate?: string;
 
   @IsOptional()
   @IsString()
@@ -49,4 +59,9 @@ export class UpdateProfileDto {
   @IsOptional()
   @IsBoolean()
   isPublic?: boolean;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(256)
+  digitalSignature?: string;
 }

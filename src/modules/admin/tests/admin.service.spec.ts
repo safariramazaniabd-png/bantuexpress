@@ -1,8 +1,15 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { NotFoundException, BadRequestException } from '@nestjs/common';
 import { AdminService } from '../admin.service';
+import { AuditService } from '../../audit/audit.service';
 import { PrismaService } from '../../../database/prisma.service';
 import { UserRole, ReportStatus, ReportReason } from '@prisma/client';
+
+const mockAuditService = {
+  log: jest.fn(),
+  findAll: jest.fn(),
+  findOne: jest.fn(),
+};
 
 const mockPrisma = {
   user: {
@@ -83,6 +90,7 @@ describe('AdminService', () => {
       providers: [
         AdminService,
         { provide: PrismaService, useValue: mockPrisma },
+        { provide: AuditService, useValue: mockAuditService },
       ],
     }).compile();
     service = module.get<AdminService>(AdminService);
@@ -375,8 +383,7 @@ describe('AdminService', () => {
         createdAt: new Date(),
         admin: { id: 'admin-1', email: 'admin@test.com' },
       };
-      mockPrisma.adminAuditLog.findMany.mockResolvedValue([mockLog]);
-      mockPrisma.adminAuditLog.count.mockResolvedValue(1);
+      mockAuditService.findAll.mockResolvedValue({ data: [mockLog], meta: { total: 1, page: 1, limit: 20, totalPages: 1 } });
 
       const result = await service.findAllAuditLogs({});
 
@@ -397,7 +404,7 @@ describe('AdminService', () => {
         createdAt: new Date(),
         admin: { id: 'admin-1', email: 'admin@test.com' },
       };
-      mockPrisma.adminAuditLog.findUnique.mockResolvedValue(mockLog);
+      mockAuditService.findOne.mockResolvedValue(mockLog);
 
       const result = await service.findAuditLog('log-1');
 
@@ -405,7 +412,7 @@ describe('AdminService', () => {
     });
 
     it('should throw NotFoundException for non-existent log', async () => {
-      mockPrisma.adminAuditLog.findUnique.mockResolvedValue(null);
+      mockAuditService.findOne.mockResolvedValue(null);
 
       await expect(service.findAuditLog('nonexistent')).rejects.toThrow(NotFoundException);
     });

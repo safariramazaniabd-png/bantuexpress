@@ -1,5 +1,5 @@
 import { plainToInstance } from 'class-transformer';
-import { IsIn, IsInt, IsNotEmpty, IsString, Max, Min, validateSync } from 'class-validator';
+import { IsIn, IsInt, IsNotEmpty, IsOptional, IsString, Max, Min, validateSync } from 'class-validator';
 
 /**
  * Schema des variables d'environnement requises. L'application refuse
@@ -27,6 +27,68 @@ class EnvironmentVariables {
   @IsString()
   @IsNotEmpty()
   JWT_EXPIRATION: string;
+
+  @IsString()
+  @IsOptional()
+  CSRF_SECRET?: string;
+
+  @IsString()
+  @IsOptional()
+  SENTRY_DSN?: string;
+
+  @IsString()
+  @IsOptional()
+  FRONTEND_URL?: string;
+
+  @IsString()
+  @IsOptional()
+  CORS_ORIGIN?: string;
+
+  // Resend (email provider)
+  @IsString()
+  @IsOptional()
+  RESEND_API_KEY?: string;
+
+  @IsString()
+  @IsOptional()
+  RESEND_FROM_EMAIL?: string;
+
+  // Africa's Talking (SMS provider)
+  @IsString()
+  @IsOptional()
+  AT_API_KEY?: string;
+
+  @IsString()
+  @IsOptional()
+  AT_USERNAME?: string;
+
+  @IsString()
+  @IsOptional()
+  AT_SENDER_ID?: string;
+
+  // Limite globale du ThrottlerGuard (par défaut 100 req/min/IP)
+  @IsInt()
+  @Min(1)
+  @IsOptional()
+  THROTTLE_LIMIT?: number;
+
+  // OAuth - binding d'applications (aud/azp). Optionnels en local,
+  // requis côté serveur pour activer le login social.
+  @IsString()
+  @IsOptional()
+  GOOGLE_CLIENT_ID?: string;
+
+  @IsString()
+  @IsOptional()
+  APPLE_CLIENT_ID?: string;
+
+  @IsString()
+  @IsOptional()
+  FACEBOOK_APP_ID?: string;
+
+  @IsString()
+  @IsOptional()
+  FACEBOOK_APP_SECRET?: string;
 }
 
 export function validateEnv(config: Record<string, unknown>): EnvironmentVariables {

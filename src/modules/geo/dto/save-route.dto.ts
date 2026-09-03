@@ -5,11 +5,13 @@ import {
   Min,
   Max,
   MinLength,
+  MaxLength,
 } from 'class-validator';
 
 export class SaveRouteDto {
   @IsString()
   @MinLength(1)
+  @MaxLength(200)
   name: string;
 
   @IsNumber()
@@ -34,13 +36,16 @@ export class SaveRouteDto {
 
   @IsOptional()
   @IsNumber()
+  @Min(0)
   distanceKm?: number;
 
   @IsOptional()
   @IsNumber()
+  @Min(0)
   durationMin?: number;
 
   @IsOptional()
   @IsString()
+  @MaxLength(5000)
   polyline?: string;
 }

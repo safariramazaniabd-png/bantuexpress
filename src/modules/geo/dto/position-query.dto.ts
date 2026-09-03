@@ -1,4 +1,4 @@
-import { IsOptional, IsNumber, IsString, Min, Max } from 'class-validator';
+import { IsOptional, IsNumber, IsString, IsIn, Min, Max } from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class PositionQueryDto {
@@ -38,5 +38,6 @@ export class PositionQueryDto {
 
   @IsOptional()
   @IsString()
+  @IsIn(['users', 'landmarks', 'all'])
   type?: 'users' | 'landmarks' | 'all';
 }

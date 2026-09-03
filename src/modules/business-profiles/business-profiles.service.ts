@@ -9,6 +9,9 @@ import { CreateBusinessProfileDto } from './dto/create-business-profile.dto';
 import { UpdateBusinessProfileDto } from './dto/update-business-profile.dto';
 import { BusinessProfileQueryDto } from './dto/business-profile-query.dto';
 import { AddMemberDto } from './dto/add-member.dto';
+import { CreateProductDto } from './dto/create-product.dto';
+import { UpdateProductDto } from './dto/update-product.dto';
+import { SetOpeningHoursDto } from './dto/set-opening-hours.dto';
 
 @Injectable()
 export class BusinessProfilesService {
@@ -243,6 +246,124 @@ export class BusinessProfilesService {
 
     await this.prisma.businessMember.delete({
       where: { businessId_userId: { businessId: id, userId: targetUserId } },
+    });
+  }
+
+  // ---- Products ----
+
+  async createProduct(businessId: string, userId: string, dto: CreateProductDto) {
+    const business = await this.prisma.businessProfile.findUnique({ where: { id: businessId } });
+    if (!business || business.deletedAt) throw new NotFoundException('Business profile not found');
+
+    const member = await this.prisma.businessMember.findUnique({
+      where: { businessId_userId: { businessId, userId } },
+    });
+    const isOwner = business.userId === userId;
+    const isAdmin = member?.role === 'admin';
+    if (!isOwner && !isAdmin) throw new ForbiddenException('Only the owner or admin can manage products');
+
+    return this.prisma.product.create({
+      data: {
+        businessProfileId: businessId,
+        name: dto.name,
+        description: dto.description,
+        price: dto.price,
+        imageUrl: dto.imageUrl,
+      },
+    });
+  }
+
+  async findProducts(businessId: string) {
+    const business = await this.prisma.businessProfile.findUnique({ where: { id: businessId } });
+    if (!business || business.deletedAt) throw new NotFoundException('Business profile not found');
+
+    return this.prisma.product.findMany({
+      where: { businessProfileId: businessId },
+      orderBy: { name: 'asc' },
+    });
+  }
+
+  async updateProduct(productId: string, userId: string, dto: UpdateProductDto) {
+    const product = await this.prisma.product.findUnique({
+      where: { id: productId },
+      include: { businessProfile: true },
+    });
+    if (!product) throw new NotFoundException('Product not found');
+
+    const business = product.businessProfile;
+    const member = await this.prisma.businessMember.findUnique({
+      where: { businessId_userId: { businessId: product.businessProfileId, userId } },
+    });
+    const isOwner = business.userId === userId;
+    const isAdmin = member?.role === 'admin';
+    if (!isOwner && !isAdmin) throw new ForbiddenException('Only the owner or admin can update products');
+
+    return this.prisma.product.update({
+      where: { id: productId },
+      data: {
+        ...(dto.name !== undefined && { name: dto.name }),
+        ...(dto.description !== undefined && { description: dto.description }),
+        ...(dto.price !== undefined && { price: dto.price }),
+        ...(dto.imageUrl !== undefined && { imageUrl: dto.imageUrl }),
+      },
+    });
+  }
+
+  async removeProduct(productId: string, userId: string) {
+    const product = await this.prisma.product.findUnique({
+      where: { id: productId },
+      include: { businessProfile: true },
+    });
+    if (!product) throw new NotFoundException('Product not found');
+
+    const business = product.businessProfile;
+    const member = await this.prisma.businessMember.findUnique({
+      where: { businessId_userId: { businessId: product.businessProfileId, userId } },
+    });
+    const isOwner = business.userId === userId;
+    const isAdmin = member?.role === 'admin';
+    if (!isOwner && !isAdmin) throw new ForbiddenException('Only the owner or admin can delete products');
+
+    await this.prisma.product.delete({ where: { id: productId } });
+  }
+
+  // ---- Opening Hours ----
+
+  async setOpeningHours(businessId: string, userId: string, dto: SetOpeningHoursDto) {
+    const business = await this.prisma.businessProfile.findUnique({ where: { id: businessId } });
+    if (!business || business.deletedAt) throw new NotFoundException('Business profile not found');
+
+    const member = await this.prisma.businessMember.findUnique({
+      where: { businessId_userId: { businessId, userId } },
+    });
+    const isOwner = business.userId === userId;
+    const isAdmin = member?.role === 'admin';
+    if (!isOwner && !isAdmin) throw new ForbiddenException('Only the owner or admin can set opening hours');
+
+    await this.prisma.openingHour.deleteMany({ where: { businessProfileId: businessId } });
+
+    const hours = await this.prisma.openingHour.createMany({
+      data: dto.hours.map((h) => ({
+        businessProfileId: businessId,
+        dayOfWeek: h.dayOfWeek,
+        open: h.open,
+        close: h.close,
+      })),
+    });
+
+    return this.prisma.openingHour.findMany({
+      where: { businessProfileId: businessId },
+      orderBy: { dayOfWeek: 'asc' },
+    });
+  }
+
+  async getOpeningHours(businessId: string) {
+    const business = await this.prisma.businessProfile.findUnique({ where: { id: businessId } });
+    if (!business || business.deletedAt) throw new NotFoundException('Business profile not found');
+
+    return this.prisma.openingHour.findMany({
+      where: { businessProfileId: businessId },
+      orderBy: { dayOfWeek: 'asc' },
     });
   }
 }

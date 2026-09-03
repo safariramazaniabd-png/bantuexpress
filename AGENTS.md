@@ -22,7 +22,7 @@ src/
 │   ├── database.module.ts       # @Global(), singleton PrismaService
 │   └── prisma.service.ts
 └── modules/
-    ├── auth/                    # strategie JWT (Passport)
+    ├── auth/                    # auth (JWT), 11 sous-services (Otp/Session/Security/Registration/...)
     ├── audit/                   # @Global() (vide, squelettique)
     ├── health/                  # GET /health
     ├── identities/
@@ -62,7 +62,12 @@ npm run prisma:studio      # Prisma Studio
 - **Validation**: `ValidationPipe` global avec `whitelist`, `forbidNonWhitelisted`, `transform`, `enableImplicitConversion: true`.
 - **Sécurité**: `helmet()` + CORS (`CORS_ORIGIN`, toutes origines en dev) + `ThrottlerGuard` (100 req/min/IP) + `enableShutdownHooks()` (K8s).
 - **Error handling**: `GlobalExceptionFilter` catch tout, format JSON uniforme, pas de détails internes sauf en dev.
-- **Env validation**: schéma `class-validator` dans `env.validation.ts` — l'app refuse de booter si une variable obligatoire manque.
+- **Env validation**: schéma `class-validator` dans `env.validation.ts` — l'app refuse de booter si une variable obligatoire manque. OAuth IDs (`GOOGLE_CLIENT_ID`, `APPLE_CLIENT_ID`, `FACEBOOK_APP_ID/SECRET`) et `THROTTLE_LIMIT` sont **optionnels**.
+- **Rôles (M1)**: modèle **hybride** — colonne `User.role` (enum `UserRole`) conservée + tables `Role` (11 types de compte seedés) et `UserRoleAssignment` (multi-rôles). `RolesGuard`/JWT lisent `User.role`. Mapping slug→enum dans `src/common/roles/role.util.ts`.
+- **OTP (M1)**: table `OtpCode`, codes jamais en clair (hash SHA-256), 10 min, max 5 essais, one-shot. Finalités SIGNUP/LOGIN/VERIFY_EMAIL/VERIFY_PHONE/WHATSAPP; canaux EMAIL/SMS. WhatsApp = OTP SMS Africa's Talking (pas de Meta Cloud API).
+- **Sécurité (M1)**: OAuth valide le binding `aud`/`app_id` (503 si fournisseur non configuré). `PasswordHistory` anti-réutilisation (5 derniers). Hachage scrypt centralisé (`common/crypto/password.util`).
+- **Sessions (M1)**: `GET/DELETE /auth/sessions` + `DELETE /auth/sessions/:id`.
+- **Migrations**: créer par `npx prisma migrate dev`, mais les migrations aci nnées (005 enum, 006 tables+seed) ont été écrites à la main puis `prisma migrate deploy` (la base n'est PAS gérée par `migrate dev` en CI non-interactif). Un `ADD VALUE` d'enum doit être splité dans une migration séparée (PostgreSQL).
 
 ## Phases planifiées (ordre)
 

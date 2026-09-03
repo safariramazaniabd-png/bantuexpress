@@ -20,6 +20,8 @@ interface UploadedFile {
 }
 
 const AVATAR_UPLOAD_DIR = path.join(process.cwd(), 'uploads', 'avatars');
+const DOCUMENT_UPLOAD_DIR = path.join(process.cwd(), 'uploads', 'documents');
+const SIGNATURE_UPLOAD_DIR = path.join(process.cwd(), 'uploads', 'signatures');
 
 @Injectable()
 export class IdentitiesService {
@@ -33,11 +35,16 @@ export class IdentitiesService {
     firstName: string;
     lastName: string;
     avatarUrl: string | null;
+    gender: string | null;
+    birthDate: Date | null;
     profession: string | null;
     languages: string[];
     secondaryPhones: string[];
     identityDocumentType: string | null;
     identityDocumentNumber: string | null;
+    identityDocumentPhoto: string | null;
+    digitalSignature: string | null;
+    verifiedAt: Date | null;
     personalQrCode: string | null;
     isPublic: boolean;
     createdAt: Date;
@@ -49,11 +56,16 @@ export class IdentitiesService {
       firstName: profile.firstName,
       lastName: profile.lastName,
       avatarUrl: profile.avatarUrl,
+      gender: profile.gender,
+      birthDate: profile.birthDate,
       profession: profile.profession,
       languages: profile.languages,
       secondaryPhones: profile.secondaryPhones,
       identityDocumentType: profile.identityDocumentType,
       identityDocumentNumber: profile.identityDocumentNumber,
+      identityDocumentPhoto: profile.identityDocumentPhoto,
+      digitalSignature: profile.digitalSignature,
+      verifiedAt: profile.verifiedAt,
       personalQrCode: profile.personalQrCode,
       isPublic: profile.isPublic,
       createdAt: profile.createdAt,
@@ -72,6 +84,8 @@ export class IdentitiesService {
         userId,
         firstName: dto.firstName,
         lastName: dto.lastName,
+        gender: dto.gender,
+        birthDate: dto.birthDate ? new Date(dto.birthDate) : undefined,
         profession: dto.profession,
         languages: dto.languages ?? [],
         secondaryPhones: dto.secondaryPhones ?? [],
@@ -104,12 +118,15 @@ export class IdentitiesService {
       data: {
         ...(dto.firstName !== undefined && { firstName: dto.firstName }),
         ...(dto.lastName !== undefined && { lastName: dto.lastName }),
+        ...(dto.gender !== undefined && { gender: dto.gender }),
+        ...(dto.birthDate !== undefined && { birthDate: new Date(dto.birthDate) }),
         ...(dto.profession !== undefined && { profession: dto.profession }),
         ...(dto.languages !== undefined && { languages: dto.languages }),
         ...(dto.secondaryPhones !== undefined && { secondaryPhones: dto.secondaryPhones }),
         ...(dto.identityDocumentType !== undefined && { identityDocumentType: dto.identityDocumentType }),
         ...(dto.identityDocumentNumber !== undefined && { identityDocumentNumber: dto.identityDocumentNumber }),
         ...(dto.isPublic !== undefined && { isPublic: dto.isPublic }),
+        ...(dto.digitalSignature !== undefined && { digitalSignature: dto.digitalSignature }),
       },
     });
 
@@ -195,6 +212,17 @@ export class IdentitiesService {
     });
   }
 
+  async deleteProfile(userId: string) {
+    const profile = await this.prisma.profile.findUnique({ where: { userId } });
+    if (!profile) {
+      throw new NotFoundException('Profile not found');
+    }
+
+    await this.prisma.profile.delete({ where: { userId } });
+
+    this.logger.log(`Profile deleted for user ${userId}`);
+  }
+
   async generateQrCode(userId: string, forceRegenerate = false) {
     const profile = await this.prisma.profile.findUnique({ where: { userId } });
     if (!profile) {
@@ -214,5 +242,84 @@ export class IdentitiesService {
     });
 
     return { personalQrCode };
+  }
+
+  async verifyProfile(userId: string) {
+    const profile = await this.prisma.profile.findUnique({ where: { userId } });
+    if (!profile) {
+      throw new NotFoundException('Profile not found');
+    }
+    const updated = await this.prisma.profile.update({
+      where: { userId },
+      data: { verifiedAt: new Date() },
+    });
+    return this.sanitizeProfile(updated);
+  }
+
+  async uploadIdentityDocument(userId: string, file: UploadedFile) {
+    const allowedMimeTypes = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'];
+    if (!allowedMimeTypes.includes(file.mimetype)) {
+      throw new BadRequestException('Invalid file type. Allowed: jpeg, png, webp, pdf');
+    }
+
+    const ext = file.originalname.split('.').pop() || 'jpg';
+    const filename = `id_${userId}_${crypto.randomBytes(8).toString('hex')}.${ext}`;
+    const filepath = path.join(DOCUMENT_UPLOAD_DIR, filename);
+
+    if (!fs.existsSync(DOCUMENT_UPLOAD_DIR)) {
+      fs.mkdirSync(DOCUMENT_UPLOAD_DIR, { recursive: true });
+    }
+    fs.writeFileSync(filepath, file.buffer);
+
+    const photoUrl = `/uploads/documents/${filename}`;
+
+    const existing = await this.prisma.profile.findUnique({ where: { userId } });
+    if (!existing) {
+      fs.unlinkSync(filepath);
+      throw new NotFoundException('Profile not found. Create a profile first.');
+    }
+
+    if (existing.identityDocumentPhoto) {
+      const oldPath = path.join(process.cwd(), existing.identityDocumentPhoto);
+      if (fs.existsSync(oldPath)) fs.unlinkSync(oldPath);
+    }
+
+    await this.prisma.profile.update({
+      where: { userId },
+      data: { identityDocumentPhoto: photoUrl },
+    });
+
+    return { identityDocumentPhoto: photoUrl };
+  }
+
+  async uploadDigitalSignature(userId: string, file: UploadedFile) {
+    const allowedMimeTypes = ['image/jpeg', 'image/png', 'image/webp'];
+    if (!allowedMimeTypes.includes(file.mimetype)) {
+      throw new BadRequestException('Invalid file type. Allowed: jpeg, png, webp');
+    }
+
+    const ext = file.originalname.split('.').pop() || 'png';
+    const filename = `sig_${userId}_${crypto.randomBytes(8).toString('hex')}.${ext}`;
+    const filepath = path.join(SIGNATURE_UPLOAD_DIR, filename);
+
+    if (!fs.existsSync(SIGNATURE_UPLOAD_DIR)) {
+      fs.mkdirSync(SIGNATURE_UPLOAD_DIR, { recursive: true });
+    }
+    fs.writeFileSync(filepath, file.buffer);
+
+    const signatureUrl = `/uploads/signatures/${filename}`;
+
+    const existing = await this.prisma.profile.findUnique({ where: { userId } });
+    if (!existing) {
+      fs.unlinkSync(filepath);
+      throw new NotFoundException('Profile not found. Create a profile first.');
+    }
+
+    await this.prisma.profile.update({
+      where: { userId },
+      data: { digitalSignature: signatureUrl },
+    });
+
+    return { digitalSignature: signatureUrl };
   }
 }

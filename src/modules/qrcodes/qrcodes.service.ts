@@ -5,6 +5,7 @@ import {
   ForbiddenException,
 } from '@nestjs/common';
 import { randomBytes } from 'crypto';
+import * as QRCode from 'qrcode';
 import { PrismaService } from '../../database/prisma.service';
 import { CreateQrCodeDto } from './dto/create-qrcode.dto';
 
@@ -80,6 +81,23 @@ export class QrCodesService {
     return this.prisma.qrCode.update({
       where: { id: qr.id },
       data: { scans: { increment: 1 }, lastScannedAt: new Date() },
+    });
+  }
+
+  async generateImage(code: string): Promise<Buffer> {
+    const qr = await this.prisma.qrCode.findUnique({ where: { code } });
+
+    if (!qr) {
+      throw new NotFoundException('QR code not found');
+    }
+
+    const resolveUrl = `${process.env.FRONTEND_URL ?? 'http://localhost:3001'}/scan/${code}`;
+
+    return QRCode.toBuffer(resolveUrl, {
+      type: 'png',
+      width: 400,
+      margin: 2,
+      color: { dark: '#1a1a2e', light: '#ffffff' },
     });
   }
 

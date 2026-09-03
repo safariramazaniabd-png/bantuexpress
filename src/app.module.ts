@@ -1,5 +1,6 @@
+import { CacheModule } from '@nestjs/cache-manager';
 import { Module } from '@nestjs/common';
-import { ConfigModule } from '@nestjs/config';
+import { ConfigModule, ConfigService } from '@nestjs/config';
 import { APP_FILTER, APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { RolesGuard } from './common/guards/roles.guard';
@@ -28,6 +29,12 @@ import { QrCodesModule } from './modules/qrcodes/qrcodes.module';
 import { BusinessProfilesModule } from './modules/business-profiles/business-profiles.module';
 import { EmergencyModule } from './modules/emergency/emergency.module';
 import { AdminModule } from './modules/admin/admin.module';
+import { FavoritesModule } from './modules/favorites/favorites.module';
+import { ReviewsModule } from './modules/reviews/reviews.module';
+import { EventsModule } from './modules/events/events.module';
+import { CategoriesModule } from './modules/categories/categories.module';
+import { SharingModule } from './modules/sharing/sharing.module';
+import { MessagingModule } from './modules/messaging/messaging.module';
 
 @Module({
   imports: [
@@ -38,10 +45,21 @@ import { AdminModule } from './modules/admin/admin.module';
     }),
 
     // Protection anti-abus de base (Module 22) - 100 requetes / minute /
-    // IP par defaut. Des limites plus fines par route (ex: tentatives de
-    // connexion, verification OTP) seront ajoutees dans le module Auth
-    // complet, via @Throttle() route par route.
-    ThrottlerModule.forRoot([{ ttl: 60_000, limit: 100 }]),
+    // IP par defaut (limite configurable via THROTTLE_LIMIT). Des limites
+    // plus fines par route (ex: tentatives de connexion, verification OTP)
+    // sont ajoutees via @Throttle() route par route.
+    ThrottlerModule.forRootAsync({
+      imports: [ConfigModule],
+      inject: [ConfigService],
+      useFactory: (configService: ConfigService) => [
+        { ttl: 60_000, limit: configService.get<number>('THROTTLE_LIMIT') ?? 100 },
+      ],
+    }),
+
+    CacheModule.register({
+      isGlobal: true,
+      ttl: 60_000,
+    }),
 
     // DatabaseModule est @Global() - une seule instance de PrismaService
     // (donc un seul pool de connexions PostgreSQL) pour toute l'application.
@@ -65,6 +83,12 @@ import { AdminModule } from './modules/admin/admin.module';
     BusinessProfilesModule,
     EmergencyModule,
     AdminModule,
+    FavoritesModule,
+    ReviewsModule,
+    EventsModule,
+    CategoriesModule,
+    SharingModule,
+    MessagingModule,
   ],
   providers: [
     // Garde anti-abus globale
