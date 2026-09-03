@@ -1,8 +1,18 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { ConflictException, NotFoundException, BadRequestException } from '@nestjs/common';
-import * as crypto from 'crypto';
+import { NotFoundException, BadRequestException } from '@nestjs/common';
 import { IdentitiesService } from '../identities.service';
 import { PrismaService } from '../../../database/prisma.service';
+
+jest.mock('fs', () => {
+  const realFs = jest.requireActual('fs');
+  return {
+    ...realFs,
+    existsSync: jest.fn().mockReturnValue(false),
+    mkdirSync: jest.fn(),
+    writeFileSync: jest.fn(),
+    unlinkSync: jest.fn(),
+  };
+});
 
 const mockPrisma = {
   profile: {
@@ -20,10 +30,7 @@ describe('IdentitiesService', () => {
     jest.clearAllMocks();
 
     const module: TestingModule = await Test.createTestingModule({
-      providers: [
-        IdentitiesService,
-        { provide: PrismaService, useValue: mockPrisma },
-      ],
+      providers: [IdentitiesService, { provide: PrismaService, useValue: mockPrisma }],
     }).compile();
 
     service = module.get<IdentitiesService>(IdentitiesService);
@@ -35,11 +42,16 @@ describe('IdentitiesService', () => {
     firstName: 'Jean',
     lastName: 'Mukendi',
     avatarUrl: null,
+    gender: 'male',
+    birthDate: new Date('1990-01-01'),
     profession: 'Développeur',
     languages: ['fr', 'ln'],
     secondaryPhones: ['+243990000002'],
     identityDocumentType: 'NATIONAL_ID',
     identityDocumentNumber: 'ID-123456',
+    identityDocumentPhoto: '/uploads/documents/id_123.jpg',
+    digitalSignature: null,
+    verifiedAt: null,
     personalQrCode: null,
     isPublic: true,
     createdAt: new Date(),
@@ -67,15 +79,16 @@ describe('IdentitiesService', () => {
       expect(mockPrisma.profile.create).toHaveBeenCalledTimes(1);
     });
 
-    it('should throw ConflictException if profile already exists', async () => {
+    it('should return the existing profile if already exists (idempotent)', async () => {
       mockPrisma.profile.findUnique.mockResolvedValue(mockProfile);
 
-      await expect(
-        service.createProfile('user-1', {
-          firstName: 'Jean',
-          lastName: 'Mukendi',
-        }),
-      ).rejects.toThrow(ConflictException);
+      const result = await service.createProfile('user-1', {
+        firstName: 'Jean',
+        lastName: 'Mukendi',
+      });
+
+      expect(result.firstName).toBe('Jean');
+      expect(mockPrisma.profile.create).not.toHaveBeenCalled();
     });
   });
 
@@ -129,9 +142,9 @@ describe('IdentitiesService', () => {
     it('should throw NotFoundException if profile does not exist', async () => {
       mockPrisma.profile.findUnique.mockResolvedValue(null);
 
-      await expect(
-        service.updateProfile('user-1', { firstName: 'Pierre' }),
-      ).rejects.toThrow(NotFoundException);
+      await expect(service.updateProfile('user-1', { firstName: 'Pierre' })).rejects.toThrow(
+        NotFoundException,
+      );
     });
   });
 
@@ -187,11 +200,32 @@ describe('IdentitiesService', () => {
         }),
       ).rejects.toThrow(NotFoundException);
     });
+
+    it('should write the file and update the profile avatarUrl', async () => {
+      mockPrisma.profile.findUnique.mockResolvedValue(mockProfile);
+      mockPrisma.profile.update.mockResolvedValue({
+        ...mockProfile,
+        avatarUrl: '/uploads/avatars/avatar.jpg',
+      });
+
+      const result = await service.uploadAvatar('user-1', {
+        buffer: Buffer.from('img'),
+        mimetype: 'image/png',
+        originalname: 'avatar.png',
+        size: 3,
+      });
+
+      expect(result.avatarUrl).toMatch(/^\/uploads\/avatars\//);
+      expect(mockPrisma.profile.update).toHaveBeenCalled();
+    });
   });
 
   describe('deleteAvatar', () => {
     it('should clear avatar URL', async () => {
-      mockPrisma.profile.findUnique.mockResolvedValue({ ...mockProfile, avatarUrl: '/uploads/avatars/test.jpg' });
+      mockPrisma.profile.findUnique.mockResolvedValue({
+        ...mockProfile,
+        avatarUrl: '/uploads/avatars/test.jpg',
+      });
       mockPrisma.profile.update.mockResolvedValue({ ...mockProfile, avatarUrl: null });
 
       await service.deleteAvatar('user-1');
@@ -218,9 +252,7 @@ describe('IdentitiesService', () => {
 
       await service.deleteProfile('user-1');
 
-      expect(mockPrisma.profile.delete).toHaveBeenCalledWith(
-        { where: { userId: 'user-1' } },
-      );
+      expect(mockPrisma.profile.delete).toHaveBeenCalledWith({ where: { userId: 'user-1' } });
     });
 
     it('should throw NotFoundException if no profile', async () => {
@@ -241,7 +273,10 @@ describe('IdentitiesService', () => {
     });
 
     it('should return existing QR code if not forced', async () => {
-      mockPrisma.profile.findUnique.mockResolvedValue({ ...mockProfile, personalQrCode: 'bqe:profile:existing' });
+      mockPrisma.profile.findUnique.mockResolvedValue({
+        ...mockProfile,
+        personalQrCode: 'bqe:profile:existing',
+      });
 
       const result = await service.generateQrCode('user-1');
 
@@ -290,6 +325,16 @@ describe('IdentitiesService', () => {
 
       await expect(service.verifyProfile('user-1')).rejects.toThrow(NotFoundException);
     });
+
+    it('should reject verification without an identity document', async () => {
+      mockPrisma.profile.findUnique.mockResolvedValue({
+        ...mockProfile,
+        identityDocumentPhoto: null,
+      });
+
+      await expect(service.verifyProfile('user-1')).rejects.toThrow(BadRequestException);
+      expect(mockPrisma.profile.update).not.toHaveBeenCalled();
+    });
   });
 
   describe('uploadIdentityDocument', () => {
@@ -317,6 +362,24 @@ describe('IdentitiesService', () => {
           size: 4,
         }),
       ).rejects.toThrow(NotFoundException);
+    });
+
+    it('should write the document and update identityDocumentPhoto', async () => {
+      mockPrisma.profile.findUnique.mockResolvedValue(mockProfile);
+      mockPrisma.profile.update.mockResolvedValue({
+        ...mockProfile,
+        identityDocumentPhoto: '/uploads/documents/id_doc.jpg',
+      });
+
+      const result = await service.uploadIdentityDocument('user-1', {
+        buffer: Buffer.from('pdf'),
+        mimetype: 'application/pdf',
+        originalname: 'id.pdf',
+        size: 3,
+      });
+
+      expect(result.identityDocumentPhoto).toMatch(/^\/uploads\/documents\//);
+      expect(mockPrisma.profile.update).toHaveBeenCalled();
     });
   });
 

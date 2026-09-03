@@ -60,12 +60,15 @@ describe('Identities (e2e)', () => {
   });
 
   describe('POST /api/v1/identities/profile', () => {
-    it('should return 409 since profile is auto-created on registration', () => {
+    it('should be idempotent and return the existing auto-created profile', () => {
       return request(app.getHttpServer())
         .post('/api/v1/identities/profile')
         .set('Authorization', `Bearer ${accessToken}`)
         .send({ firstName: 'Marie', lastName: 'Kabamba' })
-        .expect(409);
+        .expect(200)
+        .expect((res) => {
+          expect(res.body.userId).toBe(userId);
+        });
     });
 
     it('should return 401 without token', () => {
@@ -73,6 +76,14 @@ describe('Identities (e2e)', () => {
         .post('/api/v1/identities/profile')
         .send({ firstName: 'No', lastName: 'Auth' })
         .expect(401);
+    });
+
+    it('should reject unknown fields (forbidNonWhitelisted)', () => {
+      return request(app.getHttpServer())
+        .post('/api/v1/identities/profile')
+        .set('Authorization', `Bearer ${accessToken}`)
+        .send({ firstName: 'Marie', lastName: 'Kabamba', bogus: true })
+        .expect(400);
     });
   });
 
@@ -121,14 +132,38 @@ describe('Identities (e2e)', () => {
     });
   });
 
+  describe('POST /api/v1/identities/profile/identity-document', () => {
+    it('should upload an identity document (multipart file)', () => {
+      return request(app.getHttpServer())
+        .post('/api/v1/identities/profile/identity-document')
+        .set('Authorization', `Bearer ${accessToken}`)
+        .attach('file', Buffer.from('fake jpeg bytes'), 'id-card.jpg')
+        .expect(201)
+        .expect((res) => {
+          expect(res.body.identityDocumentPhoto).toMatch(/^\/uploads\/documents\//);
+        });
+    });
+  });
+
   describe('POST /api/v1/identities/profile/verify', () => {
-    it('should verify the profile', () => {
+    it('should forbid verification for non-admins (403)', () => {
       return request(app.getHttpServer())
         .post('/api/v1/identities/profile/verify')
         .set('Authorization', `Bearer ${accessToken}`)
-        .expect(201)
+        .expect(403);
+    });
+  });
+
+  describe('GET /api/v1/identities/:userId (public profile)', () => {
+    it('should return sanitized public fields before deletion', () => {
+      return request(app.getHttpServer())
+        .get(`/api/v1/identities/${userId}`)
+        .expect(200)
         .expect((res) => {
-          expect(res.body.verifiedAt).toBeDefined();
+          expect(res.body.firstName).toBe('Marie');
+          expect(res.body.userId).toBe(userId);
+          expect(res.body.email).toBeUndefined();
+          expect(res.body.secondaryPhones).toBeUndefined();
         });
     });
   });
@@ -145,11 +180,9 @@ describe('Identities (e2e)', () => {
     });
   });
 
-  describe('GET /api/v1/identities/:userId (public profile)', () => {
+  describe('GET /api/v1/identities/:userId (public profile after delete)', () => {
     it('should return 404 for deleted profile', () => {
-      return request(app.getHttpServer())
-        .get(`/api/v1/identities/${userId}`)
-        .expect(404);
+      return request(app.getHttpServer()).get(`/api/v1/identities/${userId}`).expect(404);
     });
   });
 });

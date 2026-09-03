@@ -1,10 +1,4 @@
-import {
-  Injectable,
-  NotFoundException,
-  ConflictException,
-  BadRequestException,
-  Logger,
-} from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, Logger } from '@nestjs/common';
 import * as crypto from 'crypto';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -76,7 +70,8 @@ export class IdentitiesService {
   async createProfile(userId: string, dto: CreateProfileDto) {
     const existing = await this.prisma.profile.findUnique({ where: { userId } });
     if (existing) {
-      throw new ConflictException('Profile already exists');
+      this.logger.log(`Profile already exists for user ${userId}, returning existing`);
+      return this.sanitizeProfile(existing);
     }
 
     const profile = await this.prisma.profile.create({
@@ -124,7 +119,9 @@ export class IdentitiesService {
         ...(dto.languages !== undefined && { languages: dto.languages }),
         ...(dto.secondaryPhones !== undefined && { secondaryPhones: dto.secondaryPhones }),
         ...(dto.identityDocumentType !== undefined && { identityDocumentType: dto.identityDocumentType }),
-        ...(dto.identityDocumentNumber !== undefined && { identityDocumentNumber: dto.identityDocumentNumber }),
+        ...(dto.identityDocumentNumber !== undefined && {
+          identityDocumentNumber: dto.identityDocumentNumber,
+        }),
         ...(dto.isPublic !== undefined && { isPublic: dto.isPublic }),
         ...(dto.digitalSignature !== undefined && { digitalSignature: dto.digitalSignature }),
       },
@@ -248,6 +245,9 @@ export class IdentitiesService {
     const profile = await this.prisma.profile.findUnique({ where: { userId } });
     if (!profile) {
       throw new NotFoundException('Profile not found');
+    }
+    if (!profile.identityDocumentPhoto || !profile.identityDocumentNumber) {
+      throw new BadRequestException('Profile cannot be verified without an identity document');
     }
     const updated = await this.prisma.profile.update({
       where: { userId },

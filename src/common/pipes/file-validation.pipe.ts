@@ -1,7 +1,7 @@
 import { ParseFilePipe, MaxFileSizeValidator, FileTypeValidator } from '@nestjs/common';
 
-const IMAGE_TYPES = /(jpg|jpeg|png|gif|webp)$/;
-const DOCUMENT_TYPES = /(jpg|jpeg|png|gif|webp|pdf)$/;
+const IMAGE_TYPES = /(jpg|jpeg|png|webp)$/;
+const DOCUMENT_TYPES = /(jpg|jpeg|png|webp|pdf)$/;
 const SIGNATURE_TYPES = /(jpg|jpeg|png|webp)$/;
 
 export const avatarFilePipe = new ParseFilePipe({

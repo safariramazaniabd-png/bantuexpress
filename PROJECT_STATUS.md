@@ -1,6 +1,6 @@
 # BantuExpress — État du Projet
 
-> **Dernière mise à jour** : 2026-09-02 (M1 — création de compte)
+> **Dernière mise à jour** : 2026-09-03 (M2 — identité numérique)
 
 ---
 
@@ -36,11 +36,29 @@
 
 ---
 
+## Module 2 — Identité numérique (Phase M2)
+
+### ✅ Terminé
+- **Correctif sécurité (critique)** : `POST /identities/profile/verify` était un auto-verdict (tout utilisateur connecté pouvait se marquer « vérifié »). Désormais protégé par **`RolesGuard` + `@Roles(ADMIN)`** et exige une **pièce d'identité** (`identityDocumentPhoto` + `identityDocumentNumber`) avant de poser `verifiedAt` (`identities.controller.ts`, `identities.service.ts`).
+- **Code mort éliminé** : `POST /identities/profile` (createProfile) renvoyait systématiquement 409 (les profils sont auto-créés à l'inscription) → désormais **idempotent** (upsert, retourne le profil existant).
+- **Cohérence uploads** : retrait de `gif` des validations fichier (`file-validation.pipe.ts`) pour aligner pipe ↔ service (seuls jpeg/png/webp + pdf pour la pièce d'identité).
+- **Tests** :
+  - Unitaires : `identities.service.spec.ts` **29/29** (nouveaux tests : reject non-admin-verify sans document, uploads avatar/document réussis, idempotence createProfile).
+  - E2E : `identities.e2e-spec.ts` couvre désormais l'upload de pièce d'identité, le **403 non-admin sur verify**, le profil public (sanitized), la validation `forbidNonWhitelisted`, et l'idempotence.
+- **Frontend** : suppression du formulaire « créer » mort, ajout du champ **téléphones secondaires**, du **toggle profil public**, du **picklist type de pièce d'identité**, limite **signature corrigée à 2 Mo**, badge de vérification honnête (attente / non vérifié — plus de bouton d'auto-verification), nouveau **store `profile-store.ts`**.
+
+### Validation exécutée (env. dev)
+- `npm run build` backend ✅, `npx tsc --noEmit` ✅, frontend `next build` ✅.
+- Smoke live (API bootée) : verify non-admin → **403**, createProfile idempotent → profil existant, upload GIF → **400**, upload PNG valide → **201** et fichier servi sous `/uploads`, profil public → **200** (sanitized).
+- À relancer sur une machine normale (I/O sandbox) : `npm test` complet backend + `npm run test:e2e` + vitest frontend (worker spawn limité dans la sandbox).
+
+---
+
 ## Modules suivants (planifiés)
 
 | # | Module | Priorité | Dépend de |
 |---|--------|----------|-----------|
-| 2 | Identité numérique | Haute | Auth |
+| ~~2~~ | ~~Identité numérique~~ | ~~Haute~~ | ~~Auth~~ ✅ |
 | 3 | Adresses | Haute | Identité |
 | 4 | Points de repère | Haute | Auth |
 | 5 | Géolocalisation & carte | Moyenne | Adresses |
@@ -57,8 +75,8 @@
 
 | Métrique | Valeur | Cible |
 |----------|--------|-------|
-| Tests unitaires backend | à re-vérifier (env. restreint) | >200 |
+| Tests unitaires backend | identités 29/29 validés (suite complète à re-vérifier) | >200 |
 | Tests frontend | à re-vérifier (env. restreint) | >50 |
 | Couverture backend (auth) | ~82% (avant M1) | 80% |
-| Erreurs TypeScript (backend `tsc --noEmit`) | 0 | 0 |
-| Modules backend implémentés | 21/27 | — |
+| Erreurs TypeScript (backend + frontend `tsc --noEmit`) | 0 | 0 |
+| Modules backend implémentés | 22/27 | — |

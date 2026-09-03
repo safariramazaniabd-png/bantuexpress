@@ -19,8 +19,8 @@ export function SignatureUpload({ signatureUrl, onUpload }: SignatureUploadProps
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (file.size > 5 * 1024 * 1024) {
-      toast({ title: "Fichier trop volumineux", description: "Maximum 5 Mo.", variant: "destructive" });
+    if (file.size > 2 * 1024 * 1024) {
+      toast({ title: "Fichier trop volumineux", description: "Maximum 2 Mo.", variant: "destructive" });
       return;
     }
 
