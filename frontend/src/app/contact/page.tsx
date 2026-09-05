@@ -32,7 +32,7 @@ export default function ContactPage() {
           <Mail className="h-5 w-5 text-emerald-600" />
           <div className="text-sm">
             <p className="font-medium">Email</p>
-            <p className="text-zinc-500">contact@bantuexpress.cd</p>
+            <p className="text-zinc-500">contact@bantu-express.com</p>
           </div>
         </Card>
         <Card className="flex items-center gap-3 p-4">

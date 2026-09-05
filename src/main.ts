@@ -55,7 +55,7 @@ async function bootstrap(): Promise<void> {
     .setTitle('BantuExpress API')
     .setDescription('Plateforme numérique d\'adressage et de localisation pour la RDC et l\'Afrique de l\'Est')
     .setVersion('1.0')
-    .setContact('BantuExpress Team', 'https://bantuexpress.com', 'contact@bantuexpress.com')
+    .setContact('BantuExpress Team', 'https://bantu-express.com', 'contact@bantu-express.com')
     .setLicense('UNLICENSED', 'https://github.com/anomalyco/bantuexpress/blob/main/LICENSE')
     .addServer('http://localhost:3000', 'Development')
     .addBearerAuth()

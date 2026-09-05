@@ -21,7 +21,7 @@ const sections = [
   },
   {
     title: "5. Vos droits",
-    content: "Vous pouvez à tout moment : accéder à vos données, les modifier, les supprimer, limiter leur traitement, ou demander leur portabilité. Contactez-nous à privacy@bantuexpress.cd pour exercer ces droits.",
+    content: "Vous pouvez à tout moment : accéder à vos données, les modifier, les supprimer, limiter leur traitement, ou demander leur portabilité. Contactez-nous à support@bantu-express.com pour exercer ces droits.",
   },
   {
     title: "6. Cookies",

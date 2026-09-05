@@ -10,7 +10,7 @@ export class ResendEmailProvider {
 
   constructor(private readonly configService: ConfigService) {
     this.apiKey = this.configService.get<string>('RESEND_API_KEY');
-    this.fromEmail = this.configService.get<string>('RESEND_FROM_EMAIL') || 'noreply@bantuexpress.com';
+    this.fromEmail = this.configService.get<string>('RESEND_FROM_EMAIL') || 'no-reply@bantu-express.com';
   }
 
   private getClient() {

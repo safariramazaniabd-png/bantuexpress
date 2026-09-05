@@ -275,7 +275,7 @@ gcloud run deploy bantuexpress \
   --allow-unauthenticated \
   --add-cloudsql-instances="$CONNECTION_NAME" \
   --service-account="[SAURE@$PROJECT_ID.iam.gserviceaccount.com]" \
-  --set-env-vars="NODE_ENV=production,DATABASE_URL=postgresql://$DB_USER@/$DB_NAME?host=/cloudsql/$CONNECTION_NAME,JWT_EXPIRATION=3600s,FRONTEND_URL=https://app.bantuexpress.com,CORS_ORIGIN=https://app.bantuexpress.com" \
+  --set-env-vars="NODE_ENV=production,DATABASE_URL=postgresql://$DB_USER@/$DB_NAME?host=/cloudsql/$CONNECTION_NAME,JWT_EXPIRATION=3600s,FRONTEND_URL=https://app.bantu-express.com,CORS_ORIGIN=https://app.bantu-express.com" \
   --set-secrets="DATABASE_PASSWORD=DATABASE_PASSWORD:latest,JWT_SECRET=JWT_SECRET:latest,CSRF_SECRET=CSRF_SECRET:latest,RESEND_API_KEY=RESEND_API_KEY:latest,AT_API_KEY=AT_API_KEY:latest,SENTRY_DSN=SENTRY_DSN:latest"
 ```
 

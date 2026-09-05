@@ -12,13 +12,20 @@ function hashPassword(password: string): string {
 async function main() {
   console.log('Seeding BantuExpress database...');
 
-  const adminPassword = hashPassword('Admin123!');
+  const adminInitialPassword = process.env.ADMIN_INITIAL_PASSWORD;
+  if (!adminInitialPassword) {
+    console.error(
+      'ADMIN_INITIAL_PASSWORD doit être défini pour créer le compte administrateur (voir .env.example).',
+    );
+    process.exit(1);
+  }
+  const adminPassword = hashPassword(adminInitialPassword);
 
   const admin = await prisma.user.upsert({
-    where: { email: 'admin@bantuexpress.cd' },
+    where: { email: 'admin@bantu-express.com' },
     update: {},
     create: {
-      email: 'admin@bantuexpress.cd',
+      email: 'admin@bantu-express.com',
       phone: '+243810000001',
       passwordHash: adminPassword,
       role: 'ADMIN',
@@ -35,7 +42,14 @@ async function main() {
   });
   console.log(`  ✓ Admin user: ${admin.email}`);
 
-  const individualPassword = hashPassword('User1234!');
+  const seedDemoPassword = process.env.SEED_DEMO_PASSWORD;
+  if (!seedDemoPassword) {
+    console.error(
+      'SEED_DEMO_PASSWORD doit être défini pour créer les comptes de démonstration (voir .env.example).',
+    );
+    process.exit(1);
+  }
+  const individualPassword = hashPassword(seedDemoPassword);
 
   const users = [
     { email: 'jean@example.cd', phone: '+243810000002', firstName: 'Jean', lastName: 'Mulamba', role: 'INDIVIDUAL' as const },
@@ -188,10 +202,10 @@ async function main() {
 
   console.log('\n✅ Seed completed successfully');
   console.log('   Identifiants de test :');
-  console.log('   Admin     → admin@bantuexpress.cd / Admin123!');
-  console.log('   Individu  → jean@example.cd / User1234!');
-  console.log('   Pro       → marie@example.cd / User1234!');
-  console.log('   Courier   → courier@example.cd / User1234!');
+  console.log('   Admin     → admin@bantu-express.com');
+  console.log('   Individu  → jean@example.cd');
+  console.log('   Pro       → marie@example.cd');
+  console.log('   Courier   → courier@example.cd');
 }
 
 main()
