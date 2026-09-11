@@ -5,6 +5,8 @@ import { APP_FILTER, APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { RolesGuard } from './common/guards/roles.guard';
 
+import { AppController } from './app.controller';
+
 
 import databaseConfig from './config/database.config';
 import authConfig from './config/auth.config';
@@ -90,6 +92,7 @@ import { MessagingModule } from './modules/messaging/messaging.module';
     SharingModule,
     MessagingModule,
   ],
+  controllers: [AppController],
   providers: [
     // Garde anti-abus globale
     { provide: APP_GUARD, useClass: ThrottlerGuard },

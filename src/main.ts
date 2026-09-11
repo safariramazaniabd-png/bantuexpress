@@ -1,4 +1,4 @@
-import { Logger, ValidationPipe } from '@nestjs/common';
+import { Logger, RequestMethod, ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
 import { NestExpressApplication } from '@nestjs/platform-express';
@@ -64,7 +64,14 @@ async function bootstrap(): Promise<void> {
   const document = SwaggerModule.createDocument(app, swaggerConfig);
   SwaggerModule.setup('api/docs', app, document);
 
-  app.setGlobalPrefix('api/v1', { exclude: ['health', 'csrf-token', 'api/docs'] });
+  app.setGlobalPrefix('api/v1', {
+    exclude: [
+      'health',
+      'csrf-token',
+      'api/docs',
+      { path: '', method: RequestMethod.GET },
+    ],
+  });
 
   app.enableCors({
     origin: configService.get<string>('CORS_ORIGIN') ?? true,
