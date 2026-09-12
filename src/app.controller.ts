@@ -1,19 +1,16 @@
-import { Controller, Get, RequestMethod } from '@nestjs/common';
+import { Controller, Get } from '@nestjs/common';
 import { ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { HealthService } from './modules/health/health.service';
 
 @ApiTags('Index')
 @Controller()
 export class AppController {
-  @ApiOperation({ summary: 'Racine de l’API', description: 'Point d’entrée public de l’API' })
-  @ApiOkResponse({ description: 'Métadonnées du service' })
+  constructor(private readonly healthService: HealthService) {}
+
+  @ApiOperation({ summary: 'État de santé', description: 'GET / sert la sonde de santé (identique à /health)' })
+  @ApiOkResponse({ description: 'Pays de santé du service et de la base' })
   @Get()
-  index() {
-    return {
-      service: 'BantuExpress API',
-      version: '1.0',
-      prefix: '/api/v1',
-      health: '/health',
-      documentation: '/api/docs',
-    };
+  check() {
+    return this.healthService.check();
   }
 }
