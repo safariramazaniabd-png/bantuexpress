@@ -110,6 +110,20 @@ describe('AdminService', () => {
       );
     });
 
+    it('should strip sensitive fields from returned users', async () => {
+      mockPrisma.user.findMany.mockResolvedValue([mockUser]);
+      mockPrisma.user.count.mockResolvedValue(1);
+
+      const result = await service.findAllUsers({ page: 1, limit: 20 });
+      const user = result.data[0];
+
+      expect(user.passwordHash).toBeUndefined();
+      expect(user.refreshToken).toBeUndefined();
+      expect(user.verificationCode).toBeUndefined();
+      expect(user.resetPasswordToken).toBeUndefined();
+      expect(user.twoFactorSecret).toBeUndefined();
+    });
+
     it('should filter by role', async () => {
       mockPrisma.user.findMany.mockResolvedValue([]);
       mockPrisma.user.count.mockResolvedValue(0);
@@ -144,12 +158,15 @@ describe('AdminService', () => {
   });
 
   describe('findUser', () => {
-    it('should return user with profile and counts', async () => {
+    it('should return user with profile and counts (sensitive fields stripped)', async () => {
       mockPrisma.user.findUnique.mockResolvedValue(mockUser);
 
       const result = await service.findUser('user-1');
 
-      expect(result).toEqual(mockUser);
+      expect(result).toEqual(expect.not.objectContaining({ passwordHash: 'hash' }));
+      expect(result.passwordHash).toBeUndefined();
+      expect(result.refreshToken).toBeUndefined();
+      expect(result.email).toBe(mockUser.email);
       expect(mockPrisma.user.findUnique).toHaveBeenCalledWith(
         expect.objectContaining({
           where: { id: 'user-1' },
@@ -272,18 +289,45 @@ describe('AdminService', () => {
   });
 
   describe('findReport', () => {
-    it('should return report with includes', async () => {
-      mockPrisma.contentReport.findUnique.mockResolvedValue(mockReport);
+    it('should return report with sanitized reporter/reviewedBy', async () => {
+      const reportWithUsers = {
+        ...mockReport,
+        reporter: { id: 'user-1', email: 'a@b.com', passwordHash: 'hash', refreshToken: 'tok', twoFactorSecret: 'sec', role: 'USER', isActive: true },
+        reviewedBy: { id: 'admin-1', email: 'admin@x.com', passwordHash: 'h', role: 'ADMIN', isActive: true },
+      };
+      mockPrisma.contentReport.findUnique.mockResolvedValue(reportWithUsers);
 
       const result = await service.findReport('report-1');
 
-      expect(result).toEqual(mockReport);
+      expect(result.reporter.email).toBe('a@b.com');
+      expect(result.reporter.passwordHash).toBeUndefined();
+      expect(result.reporter.refreshToken).toBeUndefined();
+      expect(result.reporter.twoFactorSecret).toBeUndefined();
+      expect(result.reviewedBy?.email).toBe('admin@x.com');
+      expect(result.reviewedBy?.passwordHash).toBeUndefined();
       expect(mockPrisma.contentReport.findUnique).toHaveBeenCalledWith(
         expect.objectContaining({
           where: { id: 'report-1' },
           include: expect.objectContaining({ reporter: true, reviewedBy: true }),
         }),
       );
+    });
+
+    it('should return report with sanitized reporter in list', async () => {
+      const reportWithUser = {
+        ...mockReport,
+        reporter: { id: 'user-1', email: 'a@b.com', passwordHash: 'hash', refreshToken: 'tok' },
+        reviewedBy: null,
+      };
+      mockPrisma.contentReport.findMany.mockResolvedValue([reportWithUser]);
+      mockPrisma.contentReport.count.mockResolvedValue(1);
+
+      const result = await service.findAllReports({ page: 1, limit: 20 });
+
+      expect(result.data[0].reporter.email).toBe('a@b.com');
+      expect(result.data[0].reporter.passwordHash).toBeUndefined();
+      expect(result.data[0].reporter.refreshToken).toBeUndefined();
+      expect(result.data[0].reviewedBy).toBeNull();
     });
 
     it('should throw NotFoundException for non-existent report', async () => {

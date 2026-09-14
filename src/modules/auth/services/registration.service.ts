@@ -31,6 +31,12 @@ export class RegistrationService {
     }
 
     if (dto.accountType) {
+      if (dto.accountType === 'administration') {
+        throw new ForbiddenException(
+          'Account type "administration" cannot be self-registered',
+        );
+      }
+
       const accountRole = await this.prisma.role.findUnique({
         where: { slug: dto.accountType },
         select: { isPublic: true },

@@ -9,6 +9,7 @@ import {
   Res,
 } from '@nestjs/common';
 import { Response } from 'express';
+import { Throttle } from '@nestjs/throttler';
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiCreatedResponse, ApiOkResponse, ApiUnauthorizedResponse } from '@nestjs/swagger';
 import { QrCodesService } from './qrcodes.service';
 import { CreateQrCodeDto } from './dto/create-qrcode.dto';
@@ -61,6 +62,7 @@ export class QrCodesController {
 
   @ApiOperation({ summary: 'Enregistrer un scan', description: 'Enregistre un scan du QR code' })
   @ApiOkResponse({ description: 'Scan enregistré' })
+  @Throttle({ default: { limit: 20, ttl: 60_000 } })
   @Patch(':code/scan')
   async recordScan(@Param('code') code: string) {
     return this.qrCodesService.recordScan(code);

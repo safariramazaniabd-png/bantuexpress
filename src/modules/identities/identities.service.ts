@@ -13,6 +13,9 @@ interface UploadedFile {
   size: number;
 }
 
+const JPEG_MAGIC = Buffer.from([0xff, 0xd8, 0xff]);
+const PNG_MAGIC = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+
 const AVATAR_UPLOAD_DIR = path.join(process.cwd(), 'uploads', 'avatars');
 const DOCUMENT_UPLOAD_DIR = path.join(process.cwd(), 'uploads', 'documents');
 const SIGNATURE_UPLOAD_DIR = path.join(process.cwd(), 'uploads', 'signatures');
@@ -22,6 +25,33 @@ export class IdentitiesService {
   private readonly logger = new Logger('IdentitiesService');
 
   constructor(private readonly prisma: PrismaService) {}
+
+  private detectFileType(buffer: Buffer): string | null {
+    if (buffer.length >= 3 && buffer.subarray(0, 3).equals(JPEG_MAGIC)) {
+      return 'image/jpeg';
+    }
+    if (buffer.length >= 8 && buffer.subarray(0, 8).equals(PNG_MAGIC)) {
+      return 'image/png';
+    }
+    if (
+      buffer.length >= 12 &&
+      buffer.toString('latin1', 0, 4) === 'RIFF' &&
+      buffer.toString('latin1', 8, 12) === 'WEBP'
+    ) {
+      return 'image/webp';
+    }
+    if (buffer.length >= 4 && buffer.toString('latin1', 0, 4) === '%PDF') {
+      return 'application/pdf';
+    }
+    return null;
+  }
+
+  private assertFileContent(file: UploadedFile, allowedMimeTypes: string[]) {
+    const detected = this.detectFileType(file.buffer);
+    if (!detected || !allowedMimeTypes.includes(detected)) {
+      throw new BadRequestException('Invalid file content. The file signature does not match an allowed format');
+    }
+  }
 
   private sanitizeProfile(profile: {
     id: string;
@@ -156,6 +186,7 @@ export class IdentitiesService {
     if (!allowedMimeTypes.includes(file.mimetype)) {
       throw new BadRequestException('Invalid file type. Allowed: jpeg, png, webp');
     }
+    this.assertFileContent(file, allowedMimeTypes);
 
     const extension = file.originalname.split('.').pop() || 'jpg';
     const filename = `${userId}_${crypto.randomBytes(8).toString('hex')}.${extension}`;
@@ -261,6 +292,7 @@ export class IdentitiesService {
     if (!allowedMimeTypes.includes(file.mimetype)) {
       throw new BadRequestException('Invalid file type. Allowed: jpeg, png, webp, pdf');
     }
+    this.assertFileContent(file, allowedMimeTypes);
 
     const ext = file.originalname.split('.').pop() || 'jpg';
     const filename = `id_${userId}_${crypto.randomBytes(8).toString('hex')}.${ext}`;
@@ -297,6 +329,7 @@ export class IdentitiesService {
     if (!allowedMimeTypes.includes(file.mimetype)) {
       throw new BadRequestException('Invalid file type. Allowed: jpeg, png, webp');
     }
+    this.assertFileContent(file, allowedMimeTypes);
 
     const ext = file.originalname.split('.').pop() || 'png';
     const filename = `sig_${userId}_${crypto.randomBytes(8).toString('hex')}.${ext}`;

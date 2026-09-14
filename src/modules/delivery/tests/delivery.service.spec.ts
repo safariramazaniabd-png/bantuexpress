@@ -13,7 +13,7 @@ const mockPrisma = {
     findUnique: jest.fn(),
     findMany: jest.fn(),
     create: jest.fn(),
-    update: jest.fn(),
+    updateMany: jest.fn(),
     count: jest.fn(),
   },
   deliveryTracking: {
@@ -26,7 +26,7 @@ describe('DeliveryService', () => {
   let service: DeliveryService;
 
   beforeEach(async () => {
-    jest.clearAllMocks();
+    jest.resetAllMocks();
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -156,6 +156,29 @@ describe('DeliveryService', () => {
         }),
       );
     });
+
+    it('should not expose clientId to couriers', async () => {
+      const publicDelivery = {
+        id: 'del-1',
+        status: 'PENDING',
+        packageSize: 'MEDIUM',
+        description: 'Documents',
+        pickupAddress: 'A',
+        dropoffLat: 1,
+        createdAt: new Date(),
+      };
+      mockPrisma.delivery.findMany.mockResolvedValue([publicDelivery]);
+      mockPrisma.delivery.count.mockResolvedValue(1);
+
+      const result = await service.findAvailable({});
+
+      expect(result.data[0]).not.toHaveProperty('clientId');
+      expect(mockPrisma.delivery.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          select: expect.not.objectContaining({ clientId: expect.anything() }),
+        }),
+      );
+    });
   });
 
   describe('findOne', () => {
@@ -193,24 +216,23 @@ describe('DeliveryService', () => {
   });
 
   describe('cancel', () => {
-    it('should cancel a pending delivery', async () => {
-      mockPrisma.delivery.findUnique.mockResolvedValue(mockDelivery);
-      mockPrisma.delivery.update.mockResolvedValue({
+    it('should cancel a pending delivery atomically', async () => {
+      mockPrisma.delivery.findUnique.mockResolvedValueOnce(mockDelivery);
+      const cancelled = {
         ...mockDelivery,
         status: DeliveryStatus.CANCELLED,
         cancelledAt: new Date(),
-      });
+      };
+      mockPrisma.delivery.updateMany.mockResolvedValue({ count: 1 });
+      mockPrisma.delivery.findUnique.mockResolvedValue(cancelled);
 
-      const result = await service.cancel('del-1', 'client-1');
+      const result = (await service.cancel('del-1', 'client-1'))!;
 
       expect(result.status).toBe(DeliveryStatus.CANCELLED);
-      expect(mockPrisma.delivery.update).toHaveBeenCalledWith(
+      expect(mockPrisma.delivery.updateMany).toHaveBeenCalledWith(
         expect.objectContaining({
-          where: { id: 'del-1' },
-          data: expect.objectContaining({
-            status: DeliveryStatus.CANCELLED,
-            cancelledAt: expect.any(Date),
-          }),
+          where: { id: 'del-1', status: DeliveryStatus.PENDING },
+          data: expect.objectContaining({ status: DeliveryStatus.CANCELLED }),
         }),
       );
     });
@@ -228,6 +250,16 @@ describe('DeliveryService', () => {
         ...mockDelivery,
         status: DeliveryStatus.ASSIGNED,
       });
+      mockPrisma.delivery.updateMany.mockResolvedValue({ count: 0 });
+
+      await expect(service.cancel('del-1', 'client-1')).rejects.toThrow(
+        BadRequestException,
+      );
+    });
+
+    it('should throw BadRequest when the atomic update matches no row (race)', async () => {
+      mockPrisma.delivery.findUnique.mockResolvedValue(mockDelivery);
+      mockPrisma.delivery.updateMany.mockResolvedValue({ count: 0 });
 
       await expect(service.cancel('del-1', 'client-1')).rejects.toThrow(
         BadRequestException,
@@ -236,19 +268,27 @@ describe('DeliveryService', () => {
   });
 
   describe('accept', () => {
-    it('should accept a pending delivery', async () => {
-      mockPrisma.delivery.findUnique.mockResolvedValue(mockDelivery);
+    it('should accept a pending delivery atomically', async () => {
+      mockPrisma.delivery.findUnique.mockResolvedValueOnce(mockDelivery);
       mockPrisma.delivery.count.mockResolvedValue(0);
-      mockPrisma.delivery.update.mockResolvedValue({
+      const assigned = {
         ...mockDelivery,
         courierId: 'courier-1',
         status: DeliveryStatus.ASSIGNED,
-      });
+      };
+      mockPrisma.delivery.updateMany.mockResolvedValue({ count: 1 });
+      mockPrisma.delivery.findUnique.mockResolvedValue(assigned);
 
-      const result = await service.accept('del-1', 'courier-1');
+      const result = (await service.accept('del-1', 'courier-1'))!;
 
       expect(result.status).toBe(DeliveryStatus.ASSIGNED);
       expect(result.courierId).toBe('courier-1');
+      expect(mockPrisma.delivery.updateMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 'del-1', status: DeliveryStatus.PENDING },
+          data: expect.objectContaining({ courierId: 'courier-1' }),
+        }),
+      );
     });
 
     it('should throw if accepting own delivery', async () => {
@@ -278,24 +318,40 @@ describe('DeliveryService', () => {
         BadRequestException,
       );
     });
+
+    it('should throw BadRequest when the atomic update matches no row (two couriers competing)', async () => {
+      mockPrisma.delivery.findUnique.mockResolvedValue(mockDelivery);
+      mockPrisma.delivery.count.mockResolvedValue(0);
+      mockPrisma.delivery.updateMany.mockResolvedValue({ count: 0 });
+
+      await expect(service.accept('del-1', 'courier-1')).rejects.toThrow(
+        BadRequestException,
+      );
+    });
   });
 
   describe('markPickedUp', () => {
-    it('should mark as picked up', async () => {
-      mockPrisma.delivery.findUnique.mockResolvedValue({
+    it('should mark as picked up atomically', async () => {
+      mockPrisma.delivery.findUnique.mockResolvedValueOnce({
         ...mockDelivery,
         courierId: 'courier-1',
         status: DeliveryStatus.ASSIGNED,
       });
-      mockPrisma.delivery.update.mockResolvedValue({
+      mockPrisma.delivery.updateMany.mockResolvedValue({ count: 1 });
+      mockPrisma.delivery.findUnique.mockResolvedValue({
         ...mockDelivery,
         status: DeliveryStatus.PICKED_UP,
         pickedUpAt: new Date(),
       });
 
-      const result = await service.markPickedUp('del-1', 'courier-1');
+      const result = (await service.markPickedUp('del-1', 'courier-1'))!;
 
       expect(result.status).toBe(DeliveryStatus.PICKED_UP);
+      expect(mockPrisma.delivery.updateMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 'del-1', courierId: 'courier-1', status: DeliveryStatus.ASSIGNED },
+        }),
+      );
     });
 
     it('should throw if not assigned to courier', async () => {
@@ -324,21 +380,27 @@ describe('DeliveryService', () => {
   });
 
   describe('markDelivered', () => {
-    it('should mark as delivered', async () => {
-      mockPrisma.delivery.findUnique.mockResolvedValue({
+    it('should mark as delivered atomically', async () => {
+      mockPrisma.delivery.findUnique.mockResolvedValueOnce({
         ...mockDelivery,
         courierId: 'courier-1',
         status: DeliveryStatus.PICKED_UP,
       });
-      mockPrisma.delivery.update.mockResolvedValue({
+      mockPrisma.delivery.updateMany.mockResolvedValue({ count: 1 });
+      mockPrisma.delivery.findUnique.mockResolvedValue({
         ...mockDelivery,
         status: DeliveryStatus.DELIVERED,
         deliveredAt: new Date(),
       });
 
-      const result = await service.markDelivered('del-1', 'courier-1');
+      const result = (await service.markDelivered('del-1', 'courier-1'))!;
 
       expect(result.status).toBe(DeliveryStatus.DELIVERED);
+      expect(mockPrisma.delivery.updateMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 'del-1', courierId: 'courier-1', status: DeliveryStatus.PICKED_UP },
+        }),
+      );
     });
 
     it('should throw if not PICKED_UP', async () => {

@@ -19,6 +19,7 @@ import {
 import { EventsService } from './events.service';
 import { CreateEventDto } from './dto/create-event.dto';
 import { UpdateEventDto } from './dto/update-event.dto';
+import { EventsQueryDto } from './dto/events-query.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser, AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 
@@ -42,14 +43,8 @@ export class EventsController {
   @Get()
   @ApiOperation({ summary: 'Lister les événements', description: 'Récupère la liste paginée des événements publics.' })
   @ApiOkResponse({ description: 'La liste des événements est retournée.' })
-  async findAll(
-    @Query('page') page?: string,
-    @Query('limit') limit?: string,
-  ) {
-    return this.eventsService.findAll(
-      page ? parseInt(page, 10) : 1,
-      limit ? parseInt(limit, 10) : 20,
-    );
+  async findAll(@Query() query: EventsQueryDto) {
+    return this.eventsService.findAll(query.page, query.limit);
   }
 
   @UseGuards(JwtAuthGuard)

@@ -1,11 +1,13 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { NotFoundException, ForbiddenException } from '@nestjs/common';
+import { NotFoundException, ForbiddenException, ConflictException } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { ReviewsService } from '../reviews.service';
 import { PrismaService } from '../../../database/prisma.service';
 
 const mockPrisma = {
   review: {
     findUnique: jest.fn(),
+    findFirst: jest.fn(),
     findMany: jest.fn(),
     create: jest.fn(),
     update: jest.fn(),
@@ -50,6 +52,63 @@ describe('ReviewsService', () => {
         comment: 'Great service',
       });
       expect(result.id).toBe('rev-1');
+    });
+
+    it('should reject a duplicate review by the same user', async () => {
+      mockPrisma.review.findFirst.mockResolvedValue(mockReview);
+
+      await expect(
+        service.create('user-1', {
+          entityType: 'business',
+          entityId: 'biz-1',
+          rating: 4,
+          comment: 'Again',
+        }),
+      ).rejects.toThrow(ConflictException);
+      expect(mockPrisma.review.create).not.toHaveBeenCalled();
+    });
+
+    it('two concurrent identical reviews both pass the app-level pre-check (race demos: DB constraint is the real guard)', async () => {
+      mockPrisma.review.findFirst.mockResolvedValue(null);
+      mockPrisma.review.create.mockResolvedValue(mockReview);
+      const dto = { entityType: 'business', entityId: 'biz-1', rating: 4 };
+
+      const results = await Promise.allSettled([
+        service.create('user-1', dto),
+        service.create('user-1', dto),
+      ]);
+
+      expect(results.every((r) => r.status === 'fulfilled')).toBe(true);
+      expect(mockPrisma.review.create).toHaveBeenCalledTimes(2);
+    });
+
+    it('unique constraint violation (P2002) on the losing request yields ConflictException — single creation', async () => {
+      mockPrisma.review.findFirst.mockResolvedValue(null);
+      mockPrisma.review.create
+        .mockResolvedValueOnce(mockReview)
+        .mockRejectedValueOnce(
+          new Prisma.PrismaClientKnownRequestError(
+            'Unique constraint failed on the fields: (`userId`,`entityType`,`entityId`)',
+            {
+              code: 'P2002',
+              clientVersion: '5.0.0',
+              meta: { target: ['userId', 'entityType', 'entityId'] },
+            },
+          ),
+        );
+      const dto = { entityType: 'business', entityId: 'biz-1', rating: 4 };
+
+      const results = await Promise.allSettled([
+        service.create('user-1', dto),
+        service.create('user-1', dto),
+      ]);
+
+      expect(results[0].status).toBe('fulfilled');
+      expect(results[1].status).toBe('rejected');
+      const reason = (results[1] as { status: 'rejected'; reason: unknown }).reason;
+      expect(reason).toBeInstanceOf(ConflictException);
+      expect((reason as Error).message).toBe('You have already reviewed this entity');
+      expect(mockPrisma.review.create).toHaveBeenCalledTimes(2);
     });
   });
 

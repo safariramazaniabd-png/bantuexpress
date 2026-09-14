@@ -71,11 +71,6 @@ export class BusinessProfilesService {
       where: { id },
       include: {
         _count: { select: { members: true } },
-        members: {
-          include: {
-            user: { select: { id: true, email: true } },
-          },
-        },
       },
     });
 
@@ -87,7 +82,25 @@ export class BusinessProfilesService {
       throw new NotFoundException('Business profile not found');
     }
 
-    return business;
+    const isOwner = business.userId === userId;
+    const member = userId
+      ? await this.prisma.businessMember.findUnique({
+          where: { businessId_userId: { businessId: id, userId } },
+        })
+      : null;
+    const canSeeMemberDetails = isOwner || member?.role === 'admin';
+
+    const members = await this.prisma.businessMember.findMany({
+      where: { businessId: id },
+      include: {
+        user: canSeeMemberDetails
+          ? { select: { id: true, email: true } }
+          : { select: { id: true } },
+      },
+      orderBy: { joinedAt: 'asc' },
+    });
+
+    return { ...business, members };
   }
 
   async update(id: string, userId: string, dto: UpdateBusinessProfileDto) {
@@ -194,13 +207,24 @@ export class BusinessProfilesService {
     });
   }
 
-  async getMembers(id: string) {
+  async getMembers(id: string, userId: string) {
     const business = await this.prisma.businessProfile.findUnique({
       where: { id },
     });
 
     if (!business || business.deletedAt) {
       throw new NotFoundException('Business profile not found');
+    }
+
+    const caller = await this.prisma.businessMember.findUnique({
+      where: { businessId_userId: { businessId: id, userId } },
+    });
+
+    const isOwner = business.userId === userId;
+    const isAdmin = caller?.role === 'admin';
+
+    if (!isOwner && !isAdmin) {
+      throw new ForbiddenException('Only the owner or an admin can list members');
     }
 
     return this.prisma.businessMember.findMany({
@@ -275,7 +299,9 @@ export class BusinessProfilesService {
 
   async findProducts(businessId: string) {
     const business = await this.prisma.businessProfile.findUnique({ where: { id: businessId } });
-    if (!business || business.deletedAt) throw new NotFoundException('Business profile not found');
+    if (!business || business.deletedAt || !business.isPublic) {
+      throw new NotFoundException('Business profile not found');
+    }
 
     return this.prisma.product.findMany({
       where: { businessProfileId: businessId },
@@ -359,7 +385,9 @@ export class BusinessProfilesService {
 
   async getOpeningHours(businessId: string) {
     const business = await this.prisma.businessProfile.findUnique({ where: { id: businessId } });
-    if (!business || business.deletedAt) throw new NotFoundException('Business profile not found');
+    if (!business || business.deletedAt || !business.isPublic) {
+      throw new NotFoundException('Business profile not found');
+    }
 
     return this.prisma.openingHour.findMany({
       where: { businessProfileId: businessId },

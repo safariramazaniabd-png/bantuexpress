@@ -152,23 +152,25 @@ export class EmergencyService {
       throw new ForbiddenException('Cannot respond to your own report');
     }
 
-    if (emergency.status !== EmergencyStatus.REPORTED) {
-      throw new BadRequestException('Emergency is no longer available');
-    }
-
     const now = new Date();
     const responseTimeMin = Math.round(
       (now.getTime() - emergency.createdAt.getTime()) / 60_000,
     );
 
-    return this.prisma.emergency.update({
-      where: { id },
+    const result = await this.prisma.emergency.updateMany({
+      where: { id, status: EmergencyStatus.REPORTED },
       data: {
         responderId,
         status: EmergencyStatus.ASSIGNED,
         responseTimeMin,
       },
     });
+
+    if (result.count !== 1) {
+      throw new BadRequestException('Emergency is no longer available');
+    }
+
+    return this.prisma.emergency.findUnique({ where: { id } });
   }
 
   async startIntervention(id: string, responderId: string) {

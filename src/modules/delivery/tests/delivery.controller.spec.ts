@@ -63,7 +63,7 @@ describe('DeliveryController', () => {
 
   describe('POST /delivery/orders', () => {
     it('should return 201', () => {
-      mockDeliveryService.create.mockResolvedValue({ id: 'del-1', status: 'PENDING' });
+      mockDeliveryService.create.mockResolvedValue({ id: '11111111-1111-4111-8111-111111111111', status: 'PENDING' });
 
       return request(app.getHttpServer())
         .post('/delivery/orders')
@@ -94,40 +94,40 @@ describe('DeliveryController', () => {
 
   describe('GET /delivery/orders/:id', () => {
     it('should return 200', () => {
-      mockDeliveryService.findOne.mockResolvedValue({ id: 'del-1' });
+      mockDeliveryService.findOne.mockResolvedValue({ id: '11111111-1111-4111-8111-111111111111' });
 
       return request(app.getHttpServer())
-        .get('/delivery/orders/del-1')
+        .get('/delivery/orders/11111111-1111-4111-8111-111111111111')
         .expect(200);
     });
   });
 
   describe('PATCH /delivery/orders/:id/cancel', () => {
     it('should return 200', () => {
-      mockDeliveryService.cancel.mockResolvedValue({ id: 'del-1', status: 'CANCELLED' });
+      mockDeliveryService.cancel.mockResolvedValue({ id: '11111111-1111-4111-8111-111111111111', status: 'CANCELLED' });
 
       return request(app.getHttpServer())
-        .patch('/delivery/orders/del-1/cancel')
+        .patch('/delivery/orders/11111111-1111-4111-8111-111111111111/cancel')
         .expect(200);
     });
   });
 
   describe('PATCH /delivery/orders/:id/accept', () => {
     it('should return 200', () => {
-      mockDeliveryService.accept.mockResolvedValue({ id: 'del-1', status: 'ASSIGNED' });
+      mockDeliveryService.accept.mockResolvedValue({ id: '11111111-1111-4111-8111-111111111111', status: 'ASSIGNED' });
 
       return request(app.getHttpServer())
-        .patch('/delivery/orders/del-1/accept')
+        .patch('/delivery/orders/11111111-1111-4111-8111-111111111111/accept')
         .expect(200);
     });
   });
 
   describe('PATCH /delivery/orders/:id/deliver', () => {
     it('should return 200', () => {
-      mockDeliveryService.markDelivered.mockResolvedValue({ id: 'del-1', status: 'DELIVERED' });
+      mockDeliveryService.markDelivered.mockResolvedValue({ id: '11111111-1111-4111-8111-111111111111', status: 'DELIVERED' });
 
       return request(app.getHttpServer())
-        .patch('/delivery/orders/del-1/deliver')
+        .patch('/delivery/orders/11111111-1111-4111-8111-111111111111/deliver')
         .expect(200);
     });
   });
@@ -137,7 +137,7 @@ describe('DeliveryController', () => {
       mockDeliveryService.addTrackingPoint.mockResolvedValue({ id: 'track-1' });
 
       return request(app.getHttpServer())
-        .post('/delivery/orders/del-1/tracking')
+        .post('/delivery/orders/11111111-1111-4111-8111-111111111111/tracking')
         .send({ latitude: -4.3, longitude: 15.3 })
         .expect(201);
     });
@@ -148,7 +148,7 @@ describe('DeliveryController', () => {
       mockDeliveryService.getTrackingHistory.mockResolvedValue([]);
 
       return request(app.getHttpServer())
-        .get('/delivery/orders/del-1/tracking')
+        .get('/delivery/orders/11111111-1111-4111-8111-111111111111/tracking')
         .expect(200);
     });
   });

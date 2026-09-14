@@ -1,5 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { ConflictException, NotFoundException } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { FavoritesService } from '../favorites.service';
 import { PrismaService } from '../../../database/prisma.service';
 
@@ -54,6 +55,33 @@ describe('FavoritesService', () => {
       await expect(
         service.add('user-1', { entityType: 'business', entityId: 'biz-1' }),
       ).rejects.toThrow(ConflictException);
+    });
+
+    it('unique constraint violation (P2002) on concurrent duplicate yields ConflictException', async () => {
+      mockPrisma.favorite.findUnique.mockResolvedValue(null);
+      mockPrisma.favorite.create
+        .mockResolvedValueOnce(mockFavorite)
+        .mockRejectedValueOnce(
+          new Prisma.PrismaClientKnownRequestError(
+            'Unique constraint failed on the fields: (`userId`,`entityType`,`entityId`)',
+            {
+              code: 'P2002',
+              clientVersion: '5.0.0',
+              meta: { target: ['userId', 'entityType', 'entityId'] },
+            },
+          ),
+        );
+
+      const results = await Promise.allSettled([
+        service.add('user-1', { entityType: 'business', entityId: 'biz-1' }),
+        service.add('user-1', { entityType: 'business', entityId: 'biz-1' }),
+      ]);
+
+      expect(results[0].status).toBe('fulfilled');
+      expect(results[1].status).toBe('rejected');
+      expect(
+        (results[1] as { status: 'rejected'; reason: unknown }).reason,
+      ).toBeInstanceOf(ConflictException);
     });
   });
 

@@ -2,6 +2,7 @@ import { Logger, RequestMethod, ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
 import { NestExpressApplication } from '@nestjs/platform-express';
+import { JwtService } from '@nestjs/jwt';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { doubleCsrf } from 'csrf-csrf';
 import * as Sentry from '@sentry/node';
@@ -10,6 +11,7 @@ import cookieParser from 'cookie-parser';
 import * as express from 'express';
 import * as path from 'path';
 import { AppModule } from './app.module';
+import { createUploadsAuthMiddleware } from './common/middleware/uploads-auth.middleware';
 
 /**
  * JSON.stringify ne sait pas serialiser un BigInt nativement (utilise
@@ -49,6 +51,12 @@ async function bootstrap(): Promise<void> {
 
   app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' } }));
 
+  // Documents d'identité et signatures sont des données personnelles :
+  // leur lecture exige un JWT valide. Les avatars restent publics.
+  app.use(
+    '/uploads',
+    createUploadsAuthMiddleware(app.get<JwtService>(JwtService)),
+  );
   app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')));
 
   const swaggerConfig = new DocumentBuilder()

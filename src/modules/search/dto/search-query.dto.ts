@@ -1,4 +1,4 @@
-import { IsOptional, IsString, IsEnum, IsNumber, Min, Max } from 'class-validator';
+import { IsOptional, IsString, IsEnum, IsNumber, Min, Max, MaxLength } from 'class-validator';
 import { Type } from 'class-transformer';
 
 export enum SearchType {
@@ -18,6 +18,7 @@ export enum SearchSort {
 export class SearchQueryDto {
   @IsOptional()
   @IsString()
+  @MaxLength(200)
   q?: string;
 
   @IsOptional()
@@ -38,11 +39,15 @@ export class SearchQueryDto {
 
   @IsOptional()
   @IsNumber()
+  @Min(-90)
+  @Max(90)
   @Type(() => Number)
   lat?: number;
 
   @IsOptional()
   @IsNumber()
+  @Min(-180)
+  @Max(180)
   @Type(() => Number)
   lng?: number;
 
@@ -73,6 +78,7 @@ export class SearchQueryDto {
 
 export class SuggestionQueryDto {
   @IsString()
+  @MaxLength(200)
   q: string;
 
   @IsOptional()

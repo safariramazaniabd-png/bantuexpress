@@ -6,6 +6,7 @@ import {
   Min,
   Max,
   MinLength,
+  MaxLength,
 } from 'class-validator';
 import { PackageSize } from '@prisma/client';
 
@@ -16,10 +17,12 @@ export class CreateDeliveryDto {
 
   @IsOptional()
   @IsString()
+  @MaxLength(1000)
   description?: string;
 
   @IsString()
   @MinLength(1)
+  @MaxLength(300)
   pickupAddress: string;
 
   @IsNumber()
@@ -34,6 +37,7 @@ export class CreateDeliveryDto {
 
   @IsString()
   @MinLength(1)
+  @MaxLength(300)
   dropoffAddress: string;
 
   @IsNumber()

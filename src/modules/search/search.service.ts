@@ -31,7 +31,7 @@ export class SearchService {
 
     const useGeo = lat !== undefined && lng !== undefined;
 
-    if (q) {
+    if (q && q.trim()) {
       const term = q.trim();
 
       if (searchPeople) {
@@ -241,8 +241,7 @@ export class SearchService {
 
       const rows = await this.prisma.$queryRawUnsafe<T[]>(sql, ...params);
       const countSql = `SELECT COUNT(*) as cnt FROM "${table}" WHERE "deletedAt" IS NULL AND ${whereClauses}${geoHaving ? geoHaving.replace(/AND location IS NOT NULL AND/, 'AND') : ''}`;
-      const countParams = geoHaving ? params.slice(0, -3) : params;
-      const countResult = await this.prisma.$queryRawUnsafe<[{ cnt: bigint }]>(countSql, ...countParams);
+      const countResult = await this.prisma.$queryRawUnsafe<[{ cnt: bigint }]>(countSql, ...params);
       const total = Number(countResult[0]?.cnt ?? 0);
 
       return [rows.map((r: any) => ({ ...r, distance: r.distance ? Number(r.distance) : undefined })) as T[], total];

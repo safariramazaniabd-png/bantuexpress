@@ -17,7 +17,9 @@ import { CreateReportDto } from './dto/create-report.dto';
 import { ReportQueryDto } from './dto/report-query.dto';
 import { ReviewReportDto } from './dto/review-report.dto';
 import { StatsDto } from './dto/stats.dto';
+import { AuditLogQueryDto } from './dto/audit-log-query.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { CurrentUser, AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 import { UserRole } from '@prisma/client';
@@ -25,7 +27,7 @@ import { UserRole } from '@prisma/client';
 @ApiTags('Administration')
 @ApiBearerAuth()
 @Controller('admin')
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, RolesGuard)
 @Roles(UserRole.ADMIN)
 export class AdminController {
   constructor(private readonly adminService: AdminService) {}
@@ -112,12 +114,8 @@ export class AdminController {
   @ApiOperation({ summary: 'Journal d\'audit', description: 'Liste paginée des actions administratives (changement de rôle, activation/désactivation, traitement de signalement).' })
   @ApiOkResponse({ description: 'Journal d\'audit' })
   @Get('audit-logs')
-  async findAllAuditLogs(
-    @Query('action') action?: string,
-    @Query('page') page?: number,
-    @Query('limit') limit?: number,
-  ) {
-    return this.adminService.findAllAuditLogs({ action, page, limit });
+  async findAllAuditLogs(@Query() query: AuditLogQueryDto) {
+    return this.adminService.findAllAuditLogs(query);
   }
 
   @ApiOperation({ summary: 'Détail entrée d\'audit', description: 'Retourne les détails d\'une entrée du journal d\'audit.' })

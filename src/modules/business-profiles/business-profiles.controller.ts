@@ -10,7 +10,7 @@ import {
   Query,
   UseGuards,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiBearerAuth, ApiCreatedResponse, ApiOkResponse } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiBearerAuth, ApiCreatedResponse, ApiOkResponse, ApiUnauthorizedResponse } from '@nestjs/swagger';
 import { BusinessProfilesService } from './business-profiles.service';
 import { CreateBusinessProfileDto } from './dto/create-business-profile.dto';
 import { UpdateBusinessProfileDto } from './dto/update-business-profile.dto';
@@ -21,6 +21,7 @@ import { UpdateProductDto } from './dto/update-product.dto';
 import { SetOpeningHoursDto } from './dto/set-opening-hours.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { OptionalAuthGuard } from '../auth/guards/optional-auth.guard';
+import { RolesGuard } from '../../common/guards/roles.guard';
 import { CurrentUser, AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { UserRole } from '@prisma/client';
@@ -100,7 +101,7 @@ export class BusinessProfilesController {
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Vérifier un profil pro', description: 'Marque un profil professionnel comme vérifié. Réservé aux administrateurs.' })
   @ApiOkResponse({ description: 'Profil vérifié' })
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN)
   @Patch(':id/verify')
   async verify(@Param('id') id: string) {
@@ -120,11 +121,17 @@ export class BusinessProfilesController {
     return this.businessProfilesService.addMember(id, user.userId, dto);
   }
 
-  @ApiOperation({ summary: 'Lister les membres', description: 'Liste les membres de l\'équipe d\'un profil professionnel.' })
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Lister les membres', description: 'Liste les membres de l\'équipe d\'un profil professionnel. Réservé au propriétaire ou admin.' })
   @ApiOkResponse({ description: 'Liste des membres' })
+  @ApiUnauthorizedResponse({ description: 'Token JWT invalide ou manquant' })
+  @UseGuards(JwtAuthGuard)
   @Get(':id/members')
-  async getMembers(@Param('id') id: string) {
-    return this.businessProfilesService.getMembers(id);
+  async getMembers(
+    @Param('id') id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.businessProfilesService.getMembers(id, user.userId);
   }
 
   @ApiBearerAuth()

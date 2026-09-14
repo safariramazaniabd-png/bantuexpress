@@ -16,12 +16,6 @@ export class AddressesService {
 
   constructor(private readonly prisma: PrismaService) {}
 
-  private readonly includeUser = {
-    user: {
-      select: { id: true, email: true, phone: true, role: true },
-    },
-  };
-
   async create(userId: string, dto: CreateAddressDto) {
     if (dto.isPrimary) {
       await this.prisma.address.updateMany({

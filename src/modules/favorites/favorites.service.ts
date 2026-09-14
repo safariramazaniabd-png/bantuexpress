@@ -4,6 +4,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
+import { Prisma } from '@prisma/client';
 import { CreateFavoriteDto } from './dto/create-favorite.dto';
 import { FavoriteQueryDto } from './dto/favorite-query.dto';
 
@@ -26,13 +27,20 @@ export class FavoritesService {
       throw new ConflictException('Already favorited');
     }
 
-    return this.prisma.favorite.create({
-      data: {
-        userId,
-        entityType: dto.entityType,
-        entityId: dto.entityId,
-      },
-    });
+    try {
+      return await this.prisma.favorite.create({
+        data: {
+          userId,
+          entityType: dto.entityType,
+          entityId: dto.entityId,
+        },
+      });
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+        throw new ConflictException('Already favorited');
+      }
+      throw error;
+    }
   }
 
   async findAll(userId: string, query: FavoriteQueryDto) {

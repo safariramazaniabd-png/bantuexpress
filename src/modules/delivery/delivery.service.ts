@@ -97,6 +97,23 @@ export class DeliveryService {
     const [data, total] = await Promise.all([
       this.prisma.delivery.findMany({
         where,
+        // Champs strictement nécessaires au boukage. clientId est exclu :
+        // le livreur n'a pas besoin d'identifier le client via la liste publique.
+        select: {
+          id: true,
+          status: true,
+          packageSize: true,
+          description: true,
+          pickupAddress: true,
+          pickupLat: true,
+          pickupLng: true,
+          dropoffAddress: true,
+          dropoffLat: true,
+          dropoffLng: true,
+          distanceKm: true,
+          price: true,
+          createdAt: true,
+        },
         skip: (page - 1) * limit,
         take: limit,
         orderBy: { createdAt: 'asc' },
@@ -143,18 +160,22 @@ export class DeliveryService {
       throw new ForbiddenException('Only the client can cancel');
     }
 
-    if (delivery.status !== DeliveryStatus.PENDING) {
-      throw new BadRequestException('Can only cancel pending deliveries');
-    }
-
-    return this.prisma.delivery.update({
-      where: { id },
+    // Transition PENDING -> CANCELLED atomique : la garde `status` est portée
+    // dans le WHERE de l'UPDATE pour empêcher tout double-cancel / cancel-après-accept.
+    const result = await this.prisma.delivery.updateMany({
+      where: { id, status: DeliveryStatus.PENDING },
       data: {
         status: DeliveryStatus.CANCELLED,
         cancelledAt: new Date(),
         cancelledReason: 'Cancelled by client',
       },
     });
+
+    if (result.count === 0) {
+      throw new BadRequestException('Can only cancel pending deliveries');
+    }
+
+    return this.prisma.delivery.findUnique({ where: { id } });
   }
 
   async accept(id: string, courierId: string) {
@@ -177,7 +198,9 @@ export class DeliveryService {
     const activeDeliveries = await this.prisma.delivery.count({
       where: {
         courierId,
-        status: { in: [DeliveryStatus.ASSIGNED, DeliveryStatus.PICKED_UP, DeliveryStatus.IN_TRANSIT] },
+        status: {
+          in: [DeliveryStatus.ASSIGNED, DeliveryStatus.PICKED_UP, DeliveryStatus.IN_TRANSIT],
+        },
       },
     });
 
@@ -185,10 +208,18 @@ export class DeliveryService {
       throw new BadRequestException('Complete your current delivery first');
     }
 
-    return this.prisma.delivery.update({
-      where: { id },
+    // Transition PENDING -> ASSIGNED atomique : deux livreurs concurrents ne
+    // peuvent pas accepter la même course — un seul updateMany aboutit.
+    const result = await this.prisma.delivery.updateMany({
+      where: { id, status: DeliveryStatus.PENDING },
       data: { courierId, status: DeliveryStatus.ASSIGNED },
     });
+
+    if (result.count === 0) {
+      throw new BadRequestException('Delivery is no longer available');
+    }
+
+    return this.prisma.delivery.findUnique({ where: { id } });
   }
 
   async markPickedUp(id: string, courierId: string) {
@@ -208,10 +239,17 @@ export class DeliveryService {
       throw new BadRequestException('Delivery must be assigned first');
     }
 
-    return this.prisma.delivery.update({
-      where: { id },
+    // Transition ASSIGNED -> PICKED_UP atomique.
+    const result = await this.prisma.delivery.updateMany({
+      where: { id, courierId, status: DeliveryStatus.ASSIGNED },
       data: { status: DeliveryStatus.PICKED_UP, pickedUpAt: new Date() },
     });
+
+    if (result.count === 0) {
+      throw new BadRequestException('Delivery must be assigned first');
+    }
+
+    return this.prisma.delivery.findUnique({ where: { id } });
   }
 
   async markDelivered(id: string, courierId: string) {
@@ -231,10 +269,17 @@ export class DeliveryService {
       throw new BadRequestException('Delivery must be picked up first');
     }
 
-    return this.prisma.delivery.update({
-      where: { id },
+    // Transition PICKED_UP -> DELIVERED atomique.
+    const result = await this.prisma.delivery.updateMany({
+      where: { id, courierId, status: DeliveryStatus.PICKED_UP },
       data: { status: DeliveryStatus.DELIVERED, deliveredAt: new Date() },
     });
+
+    if (result.count === 0) {
+      throw new BadRequestException('Delivery must be picked up first');
+    }
+
+    return this.prisma.delivery.findUnique({ where: { id } });
   }
 
   async addTrackingPoint(id: string, courierId: string, dto: TrackingDto) {

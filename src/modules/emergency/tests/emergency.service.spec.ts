@@ -14,6 +14,7 @@ const mockPrisma = {
     findMany: jest.fn(),
     create: jest.fn(),
     update: jest.fn(),
+    updateMany: jest.fn(),
     count: jest.fn(),
   },
 };
@@ -214,17 +215,31 @@ describe('EmergencyService', () => {
   });
 
   describe('assign', () => {
-    it('should assign responder with response time', async () => {
-      mockPrisma.emergency.findUnique.mockResolvedValue(mockEmergency);
-      mockPrisma.emergency.update.mockResolvedValue({
-        ...mockEmergency,
-        responderId: 'responder-1',
-        status: EmergencyStatus.ASSIGNED,
-        responseTimeMin: 2,
-      });
+    it('should assign responder atomically with response time', async () => {
+      mockPrisma.emergency.findUnique
+        .mockResolvedValueOnce(mockEmergency)
+        .mockResolvedValueOnce({
+          ...mockEmergency,
+          responderId: 'responder-1',
+          status: EmergencyStatus.ASSIGNED,
+          responseTimeMin: 2,
+        });
+      mockPrisma.emergency.updateMany.mockResolvedValue({ count: 1 });
 
-      const result = await service.assign('emerg-1', 'responder-1');
+      const result = (await service.assign('emerg-1', 'responder-1'))!;
 
+      expect(mockPrisma.emergency.updateMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            id: 'emerg-1',
+            status: EmergencyStatus.REPORTED,
+          }),
+          data: expect.objectContaining({
+            responderId: 'responder-1',
+            status: EmergencyStatus.ASSIGNED,
+          }),
+        }),
+      );
       expect(result.status).toBe(EmergencyStatus.ASSIGNED);
       expect(result.responderId).toBe('responder-1');
       expect(result.responseTimeMin).toBeDefined();
@@ -236,17 +251,20 @@ describe('EmergencyService', () => {
       await expect(service.assign('emerg-1', 'user-1')).rejects.toThrow(
         ForbiddenException,
       );
+      expect(mockPrisma.emergency.updateMany).not.toHaveBeenCalled();
     });
 
-    it('should throw if already assigned', async () => {
+    it('should throw if already taken (concurrent claim rejected)', async () => {
       mockPrisma.emergency.findUnique.mockResolvedValue({
         ...mockEmergency,
         status: EmergencyStatus.ASSIGNED,
       });
+      mockPrisma.emergency.updateMany.mockResolvedValue({ count: 0 });
 
       await expect(service.assign('emerg-1', 'responder-1')).rejects.toThrow(
         BadRequestException,
       );
+      expect(mockPrisma.emergency.findUnique).toHaveBeenCalledTimes(1);
     });
   });
 

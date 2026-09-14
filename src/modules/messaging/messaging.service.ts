@@ -27,7 +27,7 @@ export class MessagingService {
       include: {
         participants: {
           include: {
-            user: { select: { id: true, email: true, profile: { select: { firstName: true, lastName: true, avatarUrl: true } } } },
+            user: { select: { id: true, profile: { select: { firstName: true, lastName: true, avatarUrl: true } } } },
           },
         },
         _count: { select: { messages: true } },
@@ -43,7 +43,7 @@ export class MessagingService {
       include: {
         participants: {
           include: {
-            user: { select: { id: true, email: true, profile: { select: { firstName: true, lastName: true, avatarUrl: true } } } },
+            user: { select: { id: true, profile: { select: { firstName: true, lastName: true, avatarUrl: true } } } },
           },
         },
         messages: {
@@ -62,7 +62,7 @@ export class MessagingService {
       include: {
         participants: {
           include: {
-            user: { select: { id: true, email: true, profile: { select: { firstName: true, lastName: true, avatarUrl: true } } } },
+            user: { select: { id: true, profile: { select: { firstName: true, lastName: true, avatarUrl: true } } } },
           },
         },
       },
@@ -95,7 +95,7 @@ export class MessagingService {
         type: dto.type ?? 'TEXT',
       },
       include: {
-        sender: { select: { id: true, email: true } },
+        sender: { select: { id: true } },
       },
     });
   }
@@ -120,7 +120,7 @@ export class MessagingService {
         take: limit,
         orderBy: { createdAt: 'desc' },
         include: {
-          sender: { select: { id: true, email: true } },
+          sender: { select: { id: true } },
         },
       }),
       this.prisma.message.count({ where: { conversationId } }),

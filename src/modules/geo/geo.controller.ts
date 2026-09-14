@@ -87,8 +87,11 @@ export class GeoController {
     return this.geoService.getMarkersInBounds(query);
   }
 
+  @ApiBearerAuth()
   @ApiOperation({ summary: 'Calculer un itinéraire', description: 'Calcule un itinéraire entre deux points' })
   @ApiCreatedResponse({ description: 'Itinéraire calculé' })
+  @ApiUnauthorizedResponse({ description: 'Token JWT invalide ou manquant' })
+  @UseGuards(JwtAuthGuard)
   @Post('routes/calculate')
   async calculateRoute(@Body() dto: CalculateRouteDto) {
     return this.geoService.calculateRoute(dto);

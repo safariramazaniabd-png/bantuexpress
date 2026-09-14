@@ -14,12 +14,29 @@ import { ReviewReportDto } from './dto/review-report.dto';
 import { StatsDto } from './dto/stats.dto';
 import { ReportStatus, UserRole } from '@prisma/client';
 
+const SENSITIVE_USER_FIELDS = [
+  'passwordHash',
+  'refreshToken',
+  'refreshTokenJti',
+  'verificationCode',
+  'resetPasswordToken',
+  'twoFactorSecret',
+];
+
 @Injectable()
 export class AdminService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly auditService: AuditService,
   ) {}
+
+  private sanitizeUser<T extends object>(user: T): T {
+    const copy = { ...(user as Record<string, unknown>) };
+    for (const field of SENSITIVE_USER_FIELDS) {
+      delete copy[field];
+    }
+    return copy as T;
+  }
 
   async findAllUsers(query: AdminUserQueryDto) {
     const { search, role, isActive, page = 1, limit = 20 } = query;
@@ -47,7 +64,7 @@ export class AdminService {
       this.prisma.user.count({ where }),
     ]);
 
-    return { data, meta: { total, page, limit } };
+    return { data: data.map((user) => this.sanitizeUser(user)), meta: { total, page, limit } };
   }
 
   async findUser(id: string) {
@@ -59,7 +76,7 @@ export class AdminService {
       },
     });
     if (!user) throw new NotFoundException('User not found');
-    return user;
+    return this.sanitizeUser(user);
   }
 
   async changeRole(id: string, dto: ChangeRoleDto, adminId: string) {
@@ -85,7 +102,7 @@ export class AdminService {
       to: dto.role,
     });
 
-    return updated;
+    return this.sanitizeUser(updated);
   }
 
   async toggleStatus(id: string, dto: ToggleUserStatusDto, adminId: string) {
@@ -104,7 +121,7 @@ export class AdminService {
       id,
     );
 
-    return updated;
+    return this.sanitizeUser(updated);
   }
 
   async createReport(dto: CreateReportDto, reporterId: string) {
@@ -139,7 +156,13 @@ export class AdminService {
       this.prisma.contentReport.count({ where }),
     ]);
 
-    return { data, meta: { total, page, limit } };
+    const sanitized = data.map((report) => ({
+      ...report,
+      reporter: this.sanitizeUser(report.reporter),
+      reviewedBy: report.reviewedBy ? this.sanitizeUser(report.reviewedBy) : report.reviewedBy,
+    }));
+
+    return { data: sanitized, meta: { total, page, limit } };
   }
 
   async findReport(id: string) {
@@ -148,7 +171,11 @@ export class AdminService {
       include: { reporter: true, reviewedBy: true },
     });
     if (!report) throw new NotFoundException('Report not found');
-    return report;
+    return {
+      ...report,
+      reporter: this.sanitizeUser(report.reporter),
+      reviewedBy: report.reviewedBy ? this.sanitizeUser(report.reviewedBy) : report.reviewedBy,
+    };
   }
 
   async reviewReport(id: string, dto: ReviewReportDto, adminId: string) {

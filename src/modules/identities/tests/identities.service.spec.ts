@@ -23,6 +23,10 @@ const mockPrisma = {
   },
 };
 
+const JPEG_BYTES = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10, 0x4a, 0x46]);
+const PNG_BYTES = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00, 0x00]);
+const PDF_BYTES = Buffer.from('%PDF-1.7 fake document content');
+
 describe('IdentitiesService', () => {
   let service: IdentitiesService;
 
@@ -188,12 +192,25 @@ describe('IdentitiesService', () => {
       ).rejects.toThrow(BadRequestException);
     });
 
+    it('should reject a file whose magic bytes do not match the declared type', async () => {
+      mockPrisma.profile.findUnique.mockResolvedValue(mockProfile);
+
+      await expect(
+        service.uploadAvatar('user-1', {
+          buffer: Buffer.from('GIF89a fake image'),
+          mimetype: 'image/jpeg',
+          originalname: 'fake.jpg',
+          size: 15,
+        }),
+      ).rejects.toThrow(BadRequestException);
+    });
+
     it('should throw if profile does not exist', async () => {
       mockPrisma.profile.findUnique.mockResolvedValue(null);
 
       await expect(
         service.uploadAvatar('user-1', {
-          buffer: Buffer.from('test'),
+          buffer: JPEG_BYTES,
           mimetype: 'image/jpeg',
           originalname: 'test.jpg',
           size: 4,
@@ -209,7 +226,7 @@ describe('IdentitiesService', () => {
       });
 
       const result = await service.uploadAvatar('user-1', {
-        buffer: Buffer.from('img'),
+        buffer: PNG_BYTES,
         mimetype: 'image/png',
         originalname: 'avatar.png',
         size: 3,
@@ -356,7 +373,7 @@ describe('IdentitiesService', () => {
 
       await expect(
         service.uploadIdentityDocument('user-1', {
-          buffer: Buffer.from('test'),
+          buffer: JPEG_BYTES,
           mimetype: 'image/jpeg',
           originalname: 'test.jpg',
           size: 4,
@@ -372,7 +389,7 @@ describe('IdentitiesService', () => {
       });
 
       const result = await service.uploadIdentityDocument('user-1', {
-        buffer: Buffer.from('pdf'),
+        buffer: PDF_BYTES,
         mimetype: 'application/pdf',
         originalname: 'id.pdf',
         size: 3,
@@ -402,7 +419,7 @@ describe('IdentitiesService', () => {
 
       await expect(
         service.uploadDigitalSignature('user-1', {
-          buffer: Buffer.from('test'),
+          buffer: JPEG_BYTES,
           mimetype: 'image/jpeg',
           originalname: 'test.jpg',
           size: 4,

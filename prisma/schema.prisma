@@ -296,6 +296,7 @@ model Profile {
   identityDocumentNumber String?
   identityDocumentPhoto  String?
   digitalSignature       String?
+  search_vector          Unsupported("tsvector")?
   verifiedAt             DateTime?
   personalQrCode         String?               @unique
   isPublic               Boolean               @default(true)
@@ -321,6 +322,7 @@ model Address {
   isPublic   Boolean     @default(false)
   expiresAt  DateTime?
   shareToken String?     @unique
+  search_vector Unsupported("tsvector")?
   deletedAt  DateTime?
   createdAt  DateTime    @default(now())
   updatedAt  DateTime    @updatedAt
@@ -345,6 +347,7 @@ model Landmark {
   longitude   Float
   isPublic    Boolean          @default(true)
   verifiedAt  DateTime?
+  search_vector Unsupported("tsvector")?
   deletedAt   DateTime?
   createdAt   DateTime         @default(now())
   updatedAt   DateTime         @updatedAt
@@ -422,6 +425,7 @@ model BusinessProfile {
   country     String       @default("CD")
   isVerified  Boolean      @default(false)
   isPublic    Boolean      @default(true)
+  search_vector Unsupported("tsvector")?
   deletedAt   DateTime?
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
@@ -608,6 +612,7 @@ model Review {
 
   user User @relation(fields: [userId], references: [id])
 
+  @@unique([userId, entityType, entityId])
   @@index([entityType, entityId])
   @@index([userId])
 }

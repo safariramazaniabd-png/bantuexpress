@@ -10,6 +10,8 @@ import { ApiTags, ApiOperation, ApiBearerAuth, ApiOkResponse, ApiUnauthorizedRes
 import { SyncService } from './sync.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser, AuthenticatedUser } from '../../common/decorators/current-user.decorator';
+import { SyncPushDto } from './dto/sync-push.dto';
+import { SyncPullQueryDto } from './dto/sync-pull-query.dto';
 
 @ApiTags('Synchronisation')
 @Controller('sync')
@@ -24,7 +26,7 @@ export class SyncController {
   @Post('push')
   async push(
     @CurrentUser() user: AuthenticatedUser,
-    @Body() dto: { operations: Array<{ entityType: string; entityId: string; action: 'create' | 'update' | 'delete'; data: Record<string, unknown>; clientTimestamp: string }> },
+    @Body() dto: SyncPushDto,
   ) {
     return this.syncService.push(user.userId, dto);
   }
@@ -38,11 +40,8 @@ export class SyncController {
   @Get('pull')
   async pull(
     @CurrentUser() user: AuthenticatedUser,
-    @Query('since') since?: string,
-    @Query('entityType') entityType?: string,
-    @Query('page') page?: number,
-    @Query('limit') limit?: number,
+    @Query() query: SyncPullQueryDto,
   ) {
-    return this.syncService.pull(user.userId, { since, entityType, page, limit });
+    return this.syncService.pull(user.userId, query);
   }
 }

@@ -1,4 +1,4 @@
-import { IsOptional, IsEnum, IsNumber, Min } from 'class-validator';
+import { IsOptional, IsEnum, IsNumber, Min, Max } from 'class-validator';
 import { Type } from 'class-transformer';
 import { EmergencyType, EmergencyStatus } from '@prisma/client';
 
@@ -20,6 +20,7 @@ export class EmergencyQueryDto {
   @IsOptional()
   @IsNumber()
   @Min(1)
+  @Max(100)
   @Type(() => Number)
   limit?: number;
 }

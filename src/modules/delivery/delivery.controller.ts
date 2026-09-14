@@ -7,18 +7,24 @@ import {
   Param,
   Query,
   UseGuards,
+  ParseUUIDPipe,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiCreatedResponse, ApiOkResponse, ApiUnauthorizedResponse } from '@nestjs/swagger';
+import { UserRole } from '@prisma/client';
 import { DeliveryService } from './delivery.service';
 import { CreateDeliveryDto } from './dto/create-delivery.dto';
 import { DeliveryQueryDto } from './dto/delivery-query.dto';
 import { TrackingDto } from './dto/tracking.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { RolesGuard } from '../../common/guards/roles.guard';
 import { CurrentUser, AuthenticatedUser } from '../../common/decorators/current-user.decorator';
+import { Roles } from '../../common/decorators/roles.decorator';
+
+const UUID_PIPE = new ParseUUIDPipe({ version: '4' });
 
 @ApiTags('Livraison')
 @Controller('delivery')
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, RolesGuard)
 export class DeliveryController {
   constructor(private readonly deliveryService: DeliveryService) {}
 
@@ -42,11 +48,10 @@ export class DeliveryController {
   async findMyDeliveries(
     @CurrentUser() user: AuthenticatedUser,
     @Query() query: DeliveryQueryDto,
-    @Query('role') role?: string,
   ) {
     return this.deliveryService.findMyDeliveries(
       user.userId,
-      (role as 'client' | 'courier') ?? 'client',
+      query.role ?? 'client',
       query,
     );
   }
@@ -55,6 +60,7 @@ export class DeliveryController {
   @ApiOperation({ summary: 'Livraisons disponibles', description: 'Retourne les livraisons disponibles pour les livreurs' })
   @ApiOkResponse({ description: 'Liste des livraisons disponibles retournée' })
   @ApiUnauthorizedResponse({ description: 'Token JWT invalide ou manquant' })
+  @Roles(UserRole.COURIER)
   @Get('orders/available')
   async findAvailable(@Query() query: DeliveryQueryDto) {
     return this.deliveryService.findAvailable(query);
@@ -66,7 +72,7 @@ export class DeliveryController {
   @ApiUnauthorizedResponse({ description: 'Token JWT invalide ou manquant' })
   @Get('orders/:id')
   async findOne(
-    @Param('id') id: string,
+    @Param('id', UUID_PIPE) id: string,
     @CurrentUser() user: AuthenticatedUser,
   ) {
     return this.deliveryService.findOne(id, user.userId);
@@ -78,7 +84,7 @@ export class DeliveryController {
   @ApiUnauthorizedResponse({ description: 'Token JWT invalide ou manquant' })
   @Patch('orders/:id/cancel')
   async cancel(
-    @Param('id') id: string,
+    @Param('id', UUID_PIPE) id: string,
     @CurrentUser() user: AuthenticatedUser,
   ) {
     return this.deliveryService.cancel(id, user.userId);
@@ -88,9 +94,10 @@ export class DeliveryController {
   @ApiOperation({ summary: 'Accepter une livraison', description: 'Un livreur accepte une commande de livraison' })
   @ApiOkResponse({ description: 'Livraison acceptée' })
   @ApiUnauthorizedResponse({ description: 'Token JWT invalide ou manquant' })
+  @Roles(UserRole.COURIER)
   @Patch('orders/:id/accept')
   async accept(
-    @Param('id') id: string,
+    @Param('id', UUID_PIPE) id: string,
     @CurrentUser() user: AuthenticatedUser,
   ) {
     return this.deliveryService.accept(id, user.userId);
@@ -100,9 +107,10 @@ export class DeliveryController {
   @ApiOperation({ summary: 'Marquer enlevé', description: 'Marque la livraison comme enlevée par le livreur' })
   @ApiOkResponse({ description: 'Livraison marquée comme enlevée' })
   @ApiUnauthorizedResponse({ description: 'Token JWT invalide ou manquant' })
+  @Roles(UserRole.COURIER)
   @Patch('orders/:id/pickup')
   async markPickedUp(
-    @Param('id') id: string,
+    @Param('id', UUID_PIPE) id: string,
     @CurrentUser() user: AuthenticatedUser,
   ) {
     return this.deliveryService.markPickedUp(id, user.userId);
@@ -112,9 +120,10 @@ export class DeliveryController {
   @ApiOperation({ summary: 'Marquer livré', description: 'Marque la livraison comme livrée au destinataire' })
   @ApiOkResponse({ description: 'Livraison marquée comme livrée' })
   @ApiUnauthorizedResponse({ description: 'Token JWT invalide ou manquant' })
+  @Roles(UserRole.COURIER)
   @Patch('orders/:id/deliver')
   async markDelivered(
-    @Param('id') id: string,
+    @Param('id', UUID_PIPE) id: string,
     @CurrentUser() user: AuthenticatedUser,
   ) {
     return this.deliveryService.markDelivered(id, user.userId);
@@ -124,9 +133,10 @@ export class DeliveryController {
   @ApiOperation({ summary: 'Ajouter un point de suivi', description: 'Enregistre un point GPS pendant le transport' })
   @ApiCreatedResponse({ description: 'Point de suivi enregistré' })
   @ApiUnauthorizedResponse({ description: 'Token JWT invalide ou manquant' })
+  @Roles(UserRole.COURIER)
   @Post('orders/:id/tracking')
   async addTrackingPoint(
-    @Param('id') id: string,
+    @Param('id', UUID_PIPE) id: string,
     @CurrentUser() user: AuthenticatedUser,
     @Body() dto: TrackingDto,
   ) {
@@ -139,7 +149,7 @@ export class DeliveryController {
   @ApiUnauthorizedResponse({ description: 'Token JWT invalide ou manquant' })
   @Get('orders/:id/tracking')
   async getTrackingHistory(
-    @Param('id') id: string,
+    @Param('id', UUID_PIPE) id: string,
     @CurrentUser() user: AuthenticatedUser,
   ) {
     return this.deliveryService.getTrackingHistory(id, user.userId);

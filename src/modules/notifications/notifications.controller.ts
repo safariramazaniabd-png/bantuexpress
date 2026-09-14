@@ -9,6 +9,7 @@ import {
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiOkResponse, ApiUnauthorizedResponse, ApiQuery } from '@nestjs/swagger';
 import { NotificationsService } from './notifications.service';
+import { NotificationsQueryDto } from './dto/notifications-query.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser, AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 
@@ -28,11 +29,14 @@ export class NotificationsController {
   @Get()
   async findAll(
     @CurrentUser() user: AuthenticatedUser,
-    @Query('page') page?: number,
-    @Query('limit') limit?: number,
-    @Query('unreadOnly') unreadOnly?: string,
+    @Query() query: NotificationsQueryDto,
   ) {
-    return this.notificationsService.findAll(user.userId, page, limit, unreadOnly === 'true');
+    return this.notificationsService.findAll(
+      user.userId,
+      query.page,
+      query.limit,
+      query.unreadOnly === 'true',
+    );
   }
 
   @ApiBearerAuth()

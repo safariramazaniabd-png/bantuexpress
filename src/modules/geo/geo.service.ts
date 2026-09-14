@@ -260,20 +260,20 @@ export class GeoService {
     const { swLat, swLng, neLat, neLng, category, limit = 100 } = query;
 
     try {
-      const bbox = `ST_SetSRID(ST_MakeEnvelope(${swLng}, ${swLat}, ${neLng}, ${neLat}, 4326), 4326)`;
       let sql = `SELECT id, name, category, latitude, longitude
                  FROM "Landmark"
                  WHERE "deletedAt" IS NULL AND "isPublic" = true
                    AND location IS NOT NULL
-                   AND ST_Intersects(location, ${bbox})`;
-      const params: unknown[] = [];
+                   AND ST_Intersects(location, ST_SetSRID(ST_MakeEnvelope($1, $2, $3, $4, 4326), 4326))`;
+      const params: unknown[] = [swLng, swLat, neLng, neLat];
 
       if (category) {
         params.push(category);
         sql += ` AND category = $${params.length}`;
       }
 
-      sql += ` ORDER BY "createdAt" DESC LIMIT ${limit}`;
+      sql += ` ORDER BY "createdAt" DESC LIMIT $${params.length + 1}`;
+      params.push(limit);
 
       const rows = await this.prisma.$queryRawUnsafe<Array<{ id: string; name: string; category: string; latitude: number; longitude: number }>>(sql, ...params);
       return rows.map((r) => ({

@@ -2,8 +2,10 @@ import {
   Injectable,
   NotFoundException,
   ForbiddenException,
+  ConflictException,
 } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
+import { Prisma } from '@prisma/client';
 import { CreateReviewDto } from './dto/create-review.dto';
 import { UpdateReviewDto } from './dto/update-review.dto';
 import { ReviewQueryDto } from './dto/review-query.dto';
@@ -13,19 +15,38 @@ export class ReviewsService {
   constructor(private readonly prisma: PrismaService) {}
 
   async create(userId: string, dto: CreateReviewDto) {
-    const review = await this.prisma.review.create({
-      data: {
+    const existing = await this.prisma.review.findFirst({
+      where: {
         userId,
         entityType: dto.entityType,
         entityId: dto.entityId,
-        rating: dto.rating,
-        comment: dto.comment,
-      },
-      include: {
-        user: { select: { id: true, email: true, profile: { select: { firstName: true, lastName: true, avatarUrl: true } } } },
       },
     });
-    return review;
+
+    if (existing) {
+      throw new ConflictException('You have already reviewed this entity');
+    }
+
+    try {
+      const review = await this.prisma.review.create({
+        data: {
+          userId,
+          entityType: dto.entityType,
+          entityId: dto.entityId,
+          rating: dto.rating,
+          comment: dto.comment,
+        },
+        include: {
+          user: { select: { id: true, profile: { select: { firstName: true, lastName: true, avatarUrl: true } } } },
+        },
+      });
+      return review;
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+        throw new ConflictException('You have already reviewed this entity');
+      }
+      throw error;
+    }
   }
 
   async findAll(query: ReviewQueryDto) {
@@ -44,7 +65,7 @@ export class ReviewsService {
         take: limit,
         orderBy: { createdAt: 'desc' },
         include: {
-          user: { select: { id: true, email: true, profile: { select: { firstName: true, lastName: true, avatarUrl: true } } } },
+          user: { select: { id: true, profile: { select: { firstName: true, lastName: true, avatarUrl: true } } } },
         },
       }),
       this.prisma.review.count({ where }),
@@ -68,7 +89,7 @@ export class ReviewsService {
         ...(dto.comment !== undefined && { comment: dto.comment }),
       },
       include: {
-        user: { select: { id: true, email: true, profile: { select: { firstName: true, lastName: true, avatarUrl: true } } } },
+        user: { select: { id: true, profile: { select: { firstName: true, lastName: true, avatarUrl: true } } } },
       },
     });
   }

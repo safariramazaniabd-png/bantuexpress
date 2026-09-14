@@ -17,6 +17,7 @@ import {
 import { MessagingService } from './messaging.service';
 import { CreateConversationDto } from './dto/create-conversation.dto';
 import { SendMessageDto } from './dto/send-message.dto';
+import { MessagesQueryDto } from './dto/messages-query.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser, AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 
@@ -84,14 +85,13 @@ export class MessagingController {
   async getMessages(
     @Param('id') id: string,
     @CurrentUser() user: AuthenticatedUser,
-    @Query('page') page?: string,
-    @Query('limit') limit?: string,
+    @Query() query: MessagesQueryDto,
   ) {
     return this.messagingService.getMessages(
       id,
       user.userId,
-      page ? parseInt(page, 10) : 1,
-      limit ? parseInt(limit, 10) : 50,
+      query.page,
+      query.limit,
     );
   }
 }

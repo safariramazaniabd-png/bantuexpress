@@ -37,7 +37,7 @@ export class PasswordResetService {
       },
     });
 
-    this.logger.log(`Password reset token for ${user.id}: ${token}`);
+    this.logger.log(`Password reset requested for ${user.id}`);
     await this.emailService.sendPasswordReset(user.email, token);
 
     const response: Record<string, string> = {

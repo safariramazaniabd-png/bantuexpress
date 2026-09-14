@@ -348,15 +348,25 @@ describe('BusinessProfilesService', () => {
   });
 
   describe('getMembers', () => {
-    it('should return members', async () => {
+    it('should return members for an owner', async () => {
       mockPrisma.businessProfile.findUnique.mockResolvedValue(mockBusiness);
+      mockPrisma.businessMember.findUnique.mockResolvedValue(null);
       mockPrisma.businessMember.findMany.mockResolvedValue([
         { id: 'm-1', userId: 'user-1', role: 'owner', user: { id: 'user-1', email: 'owner@test.cd' } },
       ]);
 
-      const result = await service.getMembers('biz-1');
+      const result = await service.getMembers('biz-1', 'user-1');
 
       expect(result).toHaveLength(1);
+    });
+
+    it('should throw ForbiddenException for a non-owner user', async () => {
+      mockPrisma.businessProfile.findUnique.mockResolvedValue(mockBusiness);
+      mockPrisma.businessMember.findUnique.mockResolvedValue(null);
+
+      await expect(
+        service.getMembers('biz-1', 'stranger'),
+      ).rejects.toThrow(ForbiddenException);
     });
   });
 

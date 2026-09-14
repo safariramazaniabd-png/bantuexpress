@@ -118,6 +118,21 @@ describe('RegistrationService', () => {
     expect(mockPrisma.user.create).not.toHaveBeenCalled();
   });
 
+  it('should never allow self-registration as administration', async () => {
+    mockPrisma.user.findFirst.mockResolvedValue(null);
+
+    await expect(
+      service.register({
+        email: 'admin@example.com',
+        phone: '+243901234567',
+        password: 'Password1',
+        accountType: 'administration',
+      }),
+    ).rejects.toThrow(ForbiddenException);
+    expect(mockPrisma.role.findUnique).not.toHaveBeenCalled();
+    expect(mockPrisma.user.create).not.toHaveBeenCalled();
+  });
+
   it('should throw ConflictException if email or phone exists', async () => {
     mockPrisma.user.findFirst.mockResolvedValue({ id: 'existing' });
 
