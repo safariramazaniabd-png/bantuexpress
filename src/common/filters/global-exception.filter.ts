@@ -24,12 +24,23 @@ export class GlobalExceptionFilter implements ExceptionFilter {
     const response = ctx.getResponse<Response>();
     const request = ctx.getRequest<Request>();
 
+    const isCsrfError =
+      typeof exception === 'object' &&
+      exception !== null &&
+      'code' in exception &&
+      exception.code === 'EBADCSRFTOKEN';
     const isHttpException = exception instanceof HttpException;
-    const status = isHttpException ? exception.getStatus() : HttpStatus.INTERNAL_SERVER_ERROR;
+    const status = isCsrfError
+      ? HttpStatus.FORBIDDEN
+      : isHttpException
+        ? exception.getStatus()
+        : HttpStatus.INTERNAL_SERVER_ERROR;
 
-    const message = isHttpException
-      ? exception.getResponse()
-      : "Une erreur interne est survenue. L'incident a ete journalise.";
+    const message = isCsrfError
+      ? 'Invalid CSRF token'
+      : isHttpException
+        ? exception.getResponse()
+        : "Une erreur interne est survenue. L'incident a ete journalise.";
 
     if (status >= 500) {
       this.logger.error(
