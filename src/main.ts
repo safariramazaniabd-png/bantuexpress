@@ -81,10 +81,10 @@ async function bootstrap(): Promise<void> {
     ],
   });
 
-  app.enableCors({
-    origin: configService.get<string>('CORS_ORIGIN') ?? true,
-    credentials: true,
-  });
+ app.enableCors({
+  origin: ['https://bantu-express.com', 'https://www.bantu-express.com'],
+  credentials: true,
+});
 
   // Validation globale de tous les DTOs entrants :
   // - whitelist : supprime silencieusement les proprietes non declarees dans le DTO
