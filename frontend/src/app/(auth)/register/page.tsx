@@ -20,7 +20,19 @@ const ACCOUNT_TYPES = [
   { value: "agence-livraison", label: "Agence de livraison" },
   { value: "ong", label: "ONG" },
 ];
+function normalizePhone(raw: string): string {
+  let cleaned = raw.replace(/[^\d+]/g, "");
 
+  if (cleaned.startsWith("0")) {
+    cleaned = "+243" + cleaned.slice(1);
+  }
+
+  if (!cleaned.startsWith("+")) {
+    cleaned = "+" + cleaned;
+  }
+
+  return cleaned;
+}
 export default function RegisterPage() {
   const [form, setForm] = useState({
     firstName: "",
@@ -51,13 +63,13 @@ export default function RegisterPage() {
 
     try {
       await register({
-        email: form.email,
-        phone: form.phone,
-        password: form.password,
-        firstName: form.firstName,
-        lastName: form.lastName,
-        accountType: form.accountType,
-      });
+  email: form.email,
+  phone: normalizePhone(form.phone),
+  password: form.password,
+  firstName: form.firstName,
+  lastName: form.lastName,
+  accountType: form.accountType,
+});
       toast({ title: "Inscription réussie", description: "Vous pouvez maintenant vous connecter." });
       router.push("/login");
     } catch (err: unknown) {
