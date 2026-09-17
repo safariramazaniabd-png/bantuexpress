@@ -5,6 +5,16 @@ node_modules
 .env
 .env.local
 .env.*.local
+.env.*
+.env.production
+.env.development
+.env.test
+cookies.txt
+*.pem
+*.key
+*.p12
+connexion-supabase-prod.txt
+.vercel/
 docker/
 frontend/
 coverage/

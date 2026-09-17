@@ -1,9 +1,29 @@
 node_modules/
 dist/
-.env
-.env.production
-env.production
 *.log
 coverage/
 .DS_Store
 uploads/
+
+# Secrets / environnements
+.env
+.env.*
+!.env.example
+.env.local
+.env.production
+.env.development
+.env.test
+
+# Vercel
+.vercel/
+
+# Cookies / sessions
+cookies.txt
+
+# Clés et certificats
+*.pem
+*.key
+*.p12
+
+# Documentation de connexion production
+connexion-supabase-prod.txt
