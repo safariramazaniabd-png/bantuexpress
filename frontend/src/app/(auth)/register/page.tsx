@@ -10,7 +10,8 @@ import { Label } from "@/components/ui/label";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
 import { toast } from "@/hooks/use-toast";
 import { SocialButtons } from "@/components/auth/social-buttons";
-import { MapPin, Loader2 } from "lucide-react";
+import { PASSWORD_RULES, validatePassword, validatePasswordMatch, validatePhone } from "@/lib/validation";
+import { MapPin, Loader2, Eye, EyeOff } from "lucide-react";
 
 const ACCOUNT_TYPES = [
   { value: "individual", label: "Particulier" },
@@ -20,18 +21,57 @@ const ACCOUNT_TYPES = [
   { value: "agence-livraison", label: "Agence de livraison" },
   { value: "ong", label: "ONG" },
 ];
-function normalizePhone(raw: string): string {
-  let cleaned = raw.replace(/[^\d+]/g, "");
+function normalizePhone(raw: string): string | null {
+  const trimmed = raw.trim();
+  const hasInternationalPrefix = trimmed.startsWith("+");
+  const digits = raw.replace(/\D/g, "");
 
-  if (cleaned.startsWith("0")) {
-    cleaned = "+243" + cleaned.slice(1);
+  if (hasInternationalPrefix) {
+    if (!digits) return null;
+    if (digits.startsWith("243")) {
+      const subscriberNumber = digits.slice(3);
+      if (subscriberNumber.length !== 9) return null;
+      return `+243${subscriberNumber}`;
+    }
+    return `+${digits}`;
   }
 
-  if (!cleaned.startsWith("+")) {
-    cleaned = "+" + cleaned;
+  if (digits.startsWith("0") && digits.length === 9) {
+    return `+243${digits.slice(1)}`;
   }
 
-  return cleaned;
+  if (digits.length === 9 && /^[89]/.test(digits)) {
+    return `+243${digits}`;
+  }
+
+  return null;
+}
+
+function formatPhone(raw: string): string {
+  const trimmed = raw.trim();
+  const digits = raw.replace(/\D/g, "");
+
+  const groupByThree = (value: string) =>
+    value.match(/.{1,3}/g)?.join(" ") ?? "";
+
+  if (trimmed.startsWith("+")) {
+    if (!digits) return raw;
+    if (digits.startsWith("243")) {
+      const subscriberNumber = digits.slice(3);
+      return subscriberNumber ? `+243 ${groupByThree(subscriberNumber)}` : "+243";
+    }
+    return `+${groupByThree(digits)}`;
+  }
+
+  if (digits.startsWith("0") && digits.length === 9) {
+    return groupByThree(digits).replace(/^(\d{3})(\d{3})(\d{3})$/, "$1 $2 $3");
+  }
+
+  if (digits.length <= 9) {
+    return groupByThree(digits).replace(/^(\d{1,3})(\d{1,3})?(\d{1,3})?$/, (_, a, b, c) => [a, b, c].filter(Boolean).join(" "));
+  }
+
+  return raw;
 }
 export default function RegisterPage() {
   const [form, setForm] = useState({
@@ -44,8 +84,16 @@ export default function RegisterPage() {
     accountType: "individual",
   });
   const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const register = useAuthStore((s) => s.register);
   const router = useRouter();
+  const passwordCriteria = [
+    { label: `Minimum ${PASSWORD_RULES.minLength} caractères`, met: form.password.length >= PASSWORD_RULES.minLength },
+    { label: "Une minuscule", met: /[a-z]/.test(form.password) },
+    { label: "Une majuscule", met: /[A-Z]/.test(form.password) },
+    { label: "Un chiffre", met: /\d/.test(form.password) },
+  ];
 
   function updateField(field: string, value: string) {
     setForm((prev) => ({ ...prev, [field]: value }));
@@ -54,22 +102,45 @@ export default function RegisterPage() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
 
-    if (form.password !== form.confirmPassword) {
-      toast({ title: "Erreur", description: "Les mots de passe ne correspondent pas.", variant: "destructive" });
+    const normalizedPhone = normalizePhone(form.phone);
+    if (!normalizedPhone) {
+      toast({
+        title: "Erreur",
+        description: "Entrez un numéro RDC valide (ex. +243 901 234 567) ou un numéro international commençant par +.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const phoneError = validatePhone(normalizedPhone);
+    if (phoneError) {
+      toast({ title: "Erreur", description: phoneError, variant: "destructive" });
+      return;
+    }
+
+    const passwordError = validatePassword(form.password);
+    if (passwordError) {
+      toast({ title: "Erreur", description: passwordError, variant: "destructive" });
+      return;
+    }
+
+    const passwordMatchError = validatePasswordMatch(form.password, form.confirmPassword);
+    if (passwordMatchError) {
+      toast({ title: "Erreur", description: passwordMatchError, variant: "destructive" });
       return;
     }
 
     setLoading(true);
 
     try {
-      await register({
-  email: form.email,
-  phone: normalizePhone(form.phone),
-  password: form.password,
-  firstName: form.firstName,
-  lastName: form.lastName,
-  accountType: form.accountType,
-});
+        await register({
+          email: form.email,
+          phone: normalizedPhone,
+          password: form.password,
+          firstName: form.firstName,
+          lastName: form.lastName,
+          accountType: form.accountType,
+        });
       toast({ title: "Inscription réussie", description: "Vous pouvez maintenant vous connecter." });
       router.push("/login");
     } catch (err: unknown) {
@@ -128,34 +199,73 @@ export default function RegisterPage() {
               <Input
                 id="phone"
                 type="tel"
-                placeholder="+243 XXX XXX XXX"
+                placeholder="09X XXX XXX ou +243 9XX XXX XXX"
                 value={form.phone}
-                onChange={(e) => updateField("phone", e.target.value)}
+                onChange={(e) => updateField("phone", formatPhone(e.target.value))}
                 required
               />
+              <p className="text-xs text-zinc-500">Format RDC : +243 9XX XXX XXX. Les numéros internationaux avec + sont aussi acceptés.</p>
             </div>
             <div className="space-y-2">
               <Label htmlFor="password">Mot de passe</Label>
-              <Input
-                id="password"
-                type="password"
-                placeholder="Min. 8 caractères"
-                value={form.password}
-                onChange={(e) => updateField("password", e.target.value)}
-                required
-                minLength={8}
-              />
+              <div className="relative">
+                <Input
+                  id="password"
+                  type={showPassword ? "text" : "password"}
+                  placeholder="Min. 8 caractères"
+                  value={form.password}
+                  onChange={(e) => updateField("password", e.target.value)}
+                  required
+                  minLength={PASSWORD_RULES.minLength}
+                  className="pr-10"
+                />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="absolute right-0 top-0"
+                  aria-label={showPassword ? "Masquer le mot de passe" : "Afficher le mot de passe"}
+                  onClick={() => setShowPassword((visible) => !visible)}
+                >
+                  {showPassword ? <EyeOff /> : <Eye />}
+                </Button>
+              </div>
+              <ul className="space-y-1 text-xs" aria-live="polite">
+                {passwordCriteria.map((criterion) => (
+                  <li key={criterion.label} className={criterion.met ? "text-emerald-600" : "text-zinc-500"}>
+                    {criterion.met ? "Respecté" : "À respecter"} : {criterion.label}
+                  </li>
+                ))}
+              </ul>
             </div>
             <div className="space-y-2">
               <Label htmlFor="confirmPassword">Confirmer le mot de passe</Label>
-              <Input
-                id="confirmPassword"
-                type="password"
-                placeholder="Répétez le mot de passe"
-                value={form.confirmPassword}
-                onChange={(e) => updateField("confirmPassword", e.target.value)}
-                required
-              />
+              <div className="relative">
+                <Input
+                  id="confirmPassword"
+                  type={showConfirmPassword ? "text" : "password"}
+                  placeholder="Répétez le mot de passe"
+                  value={form.confirmPassword}
+                  onChange={(e) => updateField("confirmPassword", e.target.value)}
+                  required
+                  className="pr-10"
+                />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="absolute right-0 top-0"
+                  aria-label={showConfirmPassword ? "Masquer la confirmation du mot de passe" : "Afficher la confirmation du mot de passe"}
+                  onClick={() => setShowConfirmPassword((visible) => !visible)}
+                >
+                  {showConfirmPassword ? <EyeOff /> : <Eye />}
+                </Button>
+              </div>
+              {form.confirmPassword && (
+                <p className={form.password === form.confirmPassword ? "text-xs text-emerald-600" : "text-xs text-red-600"}>
+                  {form.password === form.confirmPassword ? "Les mots de passe correspondent." : "Les mots de passe ne correspondent pas."}
+                </p>
+              )}
             </div>
             <div className="space-y-2">
               <Label htmlFor="accountType">Type de compte</Label>
